@@ -1,0 +1,63 @@
+# Server .gitignore
+# Covers common Node.js and Python backend artifacts, editor files, env files and OS files.
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Node
+node_modules/
+dist/
+build/
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+.env.local
+
+# Lockfiles (uncomment if you want to ignore lockfiles)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Python
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+coverage/
+htmlcov/
+pip-wheel-metadata/
+*.egg-info/
+
+# Databases
+*.sqlite3
+*.db
+
+# Docker
+docker-compose.override.yml
+
+# Editor directories and files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Misc caches and local files
+.cache/
+.parcel-cache/
+.turbo/
+
