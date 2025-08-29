@@ -1,5 +1,6 @@
-# Seasonal_Travel_Recommender
-IRWA Assignment: Seasonal Travel Recommender – Weather Data Agent, Activity Suggestor, Packing List Generator
+# Seasonal Travel Recommender 🏖️
+
+> Seasonal Travel Recommender - Weather Data Agent, Activity Suggestor, Packing List Generator
 
 Seasonal Travel Recommender is a small multi-agent AI system that helps travellers plan short trips based on season and weather. Given a free-text user query (destination, dates, preferences), the system checks the weather for the travel dates, suggests suitable activities, and generates a practical packing list.
 
@@ -101,13 +102,6 @@ The system is designed to behave like a helpful travel assistant: ask clarifying
 - Free tier: weather + 3 activity suggestions + basic packing list.
 - Premium tier: multi-day itineraries, live updates, offline packing checklist, richer personalization.
 
-## Next steps (implementation)
-1. Create a small Conversation Agent skeleton (CLI or minimal web UI).
-2. Implement Weather Data Agent using Open-Meteo (free) and add location-to-coordinates lookup.
-3. Build a small activity dataset and a rule-based suggester.
-4. Implement Packing List Generator and wire everything through the Conversation Agent.
-
-If you'd like, I can now add the Conversation Agent skeleton (Python CLI) and a Weather Agent example using Open-Meteo so you have a runnable prototype.
 
 ---
 ## Contributors:
@@ -119,5 +113,3 @@ If you'd like, I can now add the Conversation Agent skeleton (Python CLI) and a 
 ---
 ##  License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
