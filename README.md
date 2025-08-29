@@ -1,5 +1,6 @@
-# Seasonal_Travel_Recommender
-IRWA Assignment: Seasonal Travel Recommender – Weather Data Agent, Activity Suggestor, Packing List Generator
+# Seasonal Travel Recommender 🏖️
+
+> Seasonal Travel Recommender - Weather Data Agent, Activity Suggestor, Packing List Generator
 
 Seasonal Travel Recommender is a small multi-agent AI system that helps travellers plan short trips based on season and weather. Given a free-text user query (destination, dates, preferences), the system checks the weather for the travel dates, suggests suitable activities, and generates a practical packing list.
 
