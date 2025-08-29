@@ -1,0 +1,1 @@
+# Pydantic or dataclass models for input/output data
