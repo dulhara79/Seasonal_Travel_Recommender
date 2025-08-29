@@ -1,0 +1,1 @@
+# Core logic to generate activity suggestions via LLM
