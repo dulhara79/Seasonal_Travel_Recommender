@@ -1,1 +1,1 @@
-# Core logic to generate activity suggestions via LLM
+# Core logic: builds prompt, calls Azure LLM, parses output
