@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+httpx
+spacy
+dateparser
+markdownify
+langchain 
+langchain-community 
+langchain-openai
+duckduckgo-search
+# google-search-results
