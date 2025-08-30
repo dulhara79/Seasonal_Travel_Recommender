@@ -102,6 +102,13 @@ The system is designed to behave like a helpful travel assistant: ask clarifying
 - Free tier: weather + 3 activity suggestions + basic packing list.
 - Premium tier: multi-day itineraries, live updates, offline packing checklist, richer personalization.
 
+## Next steps (implementation)
+1. Create a small Conversation Agent skeleton (CLI or minimal web UI).
+2. Implement Weather Data Agent using Open-Meteo (free) and add location-to-coordinates lookup.
+3. Build a small activity dataset and a rule-based suggester.
+4. Implement Packing List Generator and wire everything through the Conversation Agent.
+
+If you'd like, I can now add the Conversation Agent skeleton (Python CLI) and a Weather Agent example using Open-Meteo so you have a runnable prototype.
 
 ---
 ## Contributors:
