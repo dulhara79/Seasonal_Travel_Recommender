@@ -1,4 +1,3 @@
-
 # Seasonal Travel Recommender 🏖️
 
 > Seasonal Travel Recommender - Weather Data Agent, Activity Suggestor, Packing List Generator
