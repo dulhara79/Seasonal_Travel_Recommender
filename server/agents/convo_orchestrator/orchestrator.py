@@ -3,12 +3,7 @@ import os
 import httpx
 from typing import Any
 from schemas import Slots, WeatherOut, ActivitiesOut, PackingOut
-
-WEATHER_AGENT_URL = os.getenv('WEATHER_AGENT_URL')
-ACTIVITY_AGENT_URL = os.getenv("ACTIVITY_AGENT_URL")
-PACKING_AGENT_URL = os.getenv("PACKING_AGENT_URL")
-
-
+from utils.config import WEATHER_AGENT_URL, ACTIVITY_AGENT_URL, PACKING_AGENT_URL
 
 async def call_weather_agent(slots: Slots) -> WeatherOut | None:
     # implement your call to weather microservice / model here
