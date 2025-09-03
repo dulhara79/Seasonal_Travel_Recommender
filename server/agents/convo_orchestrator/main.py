@@ -1,23 +1,23 @@
+# main.py
 import os
 from typing import Dict
-from fastapi import FastAPI, Depends, Header
+from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from .schemas import UserMessage, FinalResponse, AgentTrace
-from .security import sanitize_input#, basic_auth_check
-from .nlp import extract_slots, build_clarifying_question, missing_slots
-from .orchestrator import (
+from schemas import UserMessage, FinalResponse, AgentTrace, Slots
+from security import sanitize_input
+from nlp import extract_slots, build_clarifying_question
+from orchestrator import (
     call_weather_agent, call_activity_agent, call_packing_agent,
     fallback_weather, fallback_activities, fallback_packing
 )
-from .utils import pretty_date, join_nonempty
-from .llm import polish_response
+from utils import pretty_date, join_nonempty
+from llm import polish_response
 
 load_dotenv()
 
 app = FastAPI(title="Seasonal Travel – Conversation & Orchestrator Agent", version="1.0.0")
 
-# CORS
 origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 if origins:
     app.add_middleware(
@@ -28,11 +28,7 @@ if origins:
         allow_headers=["*"],
     )
 
-# simple memory (per user_id) for slot filling across turns
 SESSION: Dict[str, dict] = {}
-
-def _get_env_auth():
-    return os.getenv("ADMIN_USERNAME", "admin"), os.getenv("ADMIN_PASSWORD", "admin123")
 
 def _ensure_session(uid: str):
     if uid not in SESSION:
@@ -45,64 +41,54 @@ async def chat(
     x_username: str | None = Header(default=None),
     x_password: str | None = Header(default=None),
 ):
-    # Basic auth check (optional; comment out if public)
-    # basic_auth_check(x_username, x_password, *_get_env_auth())
-
     text = sanitize_input(payload.text)
     state = _ensure_session(payload.user_id)
 
-    # 1) NLP Extraction and slot merge
+    # NLP extraction
     new_slots = extract_slots(text)
+    # merge with previous if present
     if state.get("slots"):
-        # merge: fill missing from previous
-        old = state["slots"]
-        new_slots.destination = new_slots.destination or old.destination
-        new_slots.start_date  = new_slots.start_date  or old.start_date
-        new_slots.end_date    = new_slots.end_date    or old.end_date
-        new_slots.preferences = new_slots.preferences or old.preferences
+        old: Slots = state["slots"]
+        # only fill missing fields
+        merged = Slots(
+            destination = new_slots.destination or old.destination,
+            start_date = new_slots.start_date or old.start_date,
+            end_date = new_slots.end_date or old.end_date,
+            preferences = new_slots.preferences or old.preferences
+        )
+        new_slots = merged
     state["slots"] = new_slots
 
-    # 2) Clarify if missing critical slots
+    # clarifying question if necessary
     cq = build_clarifying_question(new_slots)
     if cq:
         draft = f"Got it. I still need a bit more info: {cq}"
         trace = AgentTrace(nlp_json=new_slots, clarifying_question=cq, notes="Awaiting required slots.")
         return FinalResponse(text=draft, trace=trace)
 
-    # 3) Call downstream agents (with graceful fallbacks)
-    weather = await call_weather_agent(new_slots)
-    if weather is None:
-        weather = fallback_weather(new_slots)
+    # downstream agents (graceful fallbacks)
+    weather = await call_weather_agent(new_slots) or fallback_weather(new_slots)
+    activities = await call_activity_agent(new_slots, weather) or fallback_activities(new_slots, weather)
+    packing = await call_packing_agent(new_slots, weather, activities) or fallback_packing(new_slots, weather, activities)
 
-    activities = await call_activity_agent(new_slots, weather)
-    if activities is None:
-        activities = fallback_activities(new_slots, weather)
-
-    packing = await call_packing_agent(new_slots, weather, activities)
-    if packing is None:
-        packing = fallback_packing(new_slots, weather, activities)
-
-    # 4) Compose final draft
-    dest = new_slots.destination
-    dates_str = join_nonempty([
-        pretty_date(new_slots.start_date),
-        pretty_date(new_slots.end_date)
-    ])
+    # compose
+    dest = new_slots.destination or "your destination"
+    dates_str = join_nonempty([pretty_date(new_slots.start_date), pretty_date(new_slots.end_date)])
     wx_summary = f"The weather around {dest} from {dates_str} looks {weather.avg_temp or 'seasonally typical'}."
-    if weather.conditions:
+    if getattr(weather, "conditions", None):
         cond_bits = []
         for c in weather.conditions[:4]:
-            status = c.status or "—"
+            status = getattr(c, "status", "—")
             cond_bits.append(f"{c.date}: {status}")
         wx_summary += " Conditions: " + "; ".join(cond_bits) + "."
 
     acts_lines = []
-    for a in activities.activities[:6]:
-        reason = f" ({a.reason})" if a.reason else ""
+    for a in getattr(activities, "activities", [])[:6]:
+        reason = f" ({a.reason})" if getattr(a, "reason", None) else ""
         acts_lines.append(f"- {a.day}: {a.activity}{reason}")
     acts_text = "\n".join(acts_lines) if acts_lines else "- (No activities available)"
 
-    pack_lines = [f"- {item}" for item in packing.packing_list[:20]] or ["- (No items)"]
+    pack_lines = [f"- {item}" for item in getattr(packing, "packing_list", [])[:20]] or ["- (No items)"]
     pack_text = "\n".join(pack_lines)
 
     draft = f"""**Plan for {dest} ({dates_str})**
@@ -116,14 +102,13 @@ async def chat(
 **Packing List**
 {pack_text}
 
-_Why these suggestions?_ Outdoor ideas appear on clearer days; rainy forecasts drive indoor cultural options. Packing adapts to temperature and rain risk, plus your preference: {new_slots.preferences}.
+_Why these suggestions?_ Outdoor ideas appear on clearer days; rainy forecasts drive indoor cultural options. Packing adapts to temperature and rain risk, plus your preference: {new_slots.preferences or 'general'}.
 """
 
-    # 5) Optional LLM polishing for nicer tone
     polished = polish_response(
         system_prompt=(
-            "You are a concise, helpful travel assistant. Keep formatting tidy, non-repetitive, and user-friendly."
-            " Do not invent data—preserve facts; you may rephrase for clarity."
+            "You are a concise, helpful travel assistant. Keep formatting tidy, non-repetitive, and user-friendly. "
+            "Do not invent data—preserve facts; you may rephrase for clarity."
         ),
         draft=draft
     )
@@ -138,11 +123,3 @@ _Why these suggestions?_ Outdoor ideas appear on clearer days; rainy forecasts d
         notes="OK"
     )
     return FinalResponse(text=final_text, trace=trace)
-
-# @app.post("/reset")
-# def reset(user_id: str,
-#           x_username: str | None = Header(default=None),
-#           x_password: str | None = Header(default=None)):
-#     basic_auth_check(x_username, x_password, *_get_env_auth())
-#     SESSION.pop(user_id, None)
-#     return {"ok": True}

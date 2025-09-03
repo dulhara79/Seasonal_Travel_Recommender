@@ -1,24 +1,21 @@
+# utils.py
 from datetime import datetime
 from typing import Optional, Tuple
 import dateparser
 
 def normalize_dates(free_text: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Attempts to parse a date range like 'Dec 15–20' or 'from Dec 15 to Dec 20' (any year).
-    Returns (start_iso, end_iso).
-    """
-    # Try a few heuristics
     text = free_text.replace("–", "-").replace("—", "-")
-    # Check for patterns like "from X to Y"
-    # Fallback: find two dates in text
-    dates = dateparser.search.search_dates(text, settings={"PREFER_DATES_FROM": "future"})
-    if not dates or len(dates) == 0:
+    # dateparser search
+    try:
+        dates = dateparser.search.search_dates(text, settings={"PREFER_DATES_FROM": "future"})
+    except Exception:
+        dates = None
+    if not dates:
         return None, None
-    # Pick first two distinct dates
     uniq = []
     for _, dt in dates:
         dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        if not uniq or (uniq and dt.date() != uniq[-1].date()):
+        if not uniq or dt.date() != uniq[-1].date():
             uniq.append(dt)
         if len(uniq) == 2:
             break
