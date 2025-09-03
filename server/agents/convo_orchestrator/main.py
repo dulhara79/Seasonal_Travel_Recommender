@@ -20,6 +20,7 @@ load_dotenv()
 app = FastAPI(title="Seasonal Travel – Conversation & Orchestrator Agent", version="1.0.0")
 
 origins = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()]
+
 if origins:
     app.add_middleware(
         CORSMiddleware,

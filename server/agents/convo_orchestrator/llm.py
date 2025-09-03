@@ -2,6 +2,7 @@
 import os
 from typing import Optional
 from utils.config import OPENAI_API_KEY, LLM_MODEL
+
 try:
     from openai import OpenAI
 except Exception:
@@ -13,6 +14,7 @@ def _get_client() -> Optional[OpenAI]:
     global _client
     if _client is None:
         key = OPENAI_API_KEY
+
         if not key or OpenAI is None:
             return None
         _client = OpenAI(api_key=key)
