@@ -14,8 +14,8 @@ def forecast(request: WeatherRequest):
     Expects a JSON body like:
     {
         "destination": "Colombo",
-        "start_date": "2025-08-31",
-        "end_date": "2025-09-02"
+        "start_date": "2025-09-02",
+        "end_date": "2025-09-04"
     }
     """
     try:
