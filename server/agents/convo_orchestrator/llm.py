@@ -1,28 +1,30 @@
+# llm.py (minor tweak)
 import os
 from typing import Optional
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
 
 _client = None
 
 def _get_client() -> Optional[OpenAI]:
-    key = os.getenv("OPENAI_API_KEY")
-    if not key:
-        return None
-
     global _client
     if _client is None:
+        key = os.getenv("OPENAI_API_KEY")
+        if not key or OpenAI is None:
+            return None
         _client = OpenAI(api_key=key)
-
     return _client
 
 def polish_response(system_prompt: str, draft: str) -> Optional[str]:
     client = _get_client()
     if client is None:
         return None
-
     try:
+        # adapt call to your installed OpenAI SDK if necessary
         res = client.chat.completion.create(
-            model='gpt-40-mini',  # type: ignore,
+            model='gpt-40-mini',
             temperature=0.3,
             message=[
                 {'role': 'system', 'content': system_prompt},
@@ -31,5 +33,5 @@ def polish_response(system_prompt: str, draft: str) -> Optional[str]:
         )
         return res.choices[0].message.content
     except Exception as e:
-        print(e)
+        print("LLM polish failed:", e)
         return None
