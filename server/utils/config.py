@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
 
 # Database
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -38,3 +38,7 @@ EMAIL_USERNAME = os.getenv('EMAIL_USERNAME')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
+
+# Activity Recommender
+ACTIVITY_FAISS_DIR = os.getenv('ACTIVITY_FAISS_DIR', "../../data/activity_faiss")
+ACTIVITY_SOURCES_JSON = os.getenv('ACTIVITY_SOURCES_JSON', "../../data/activity_sources.json")

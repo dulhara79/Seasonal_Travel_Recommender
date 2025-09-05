@@ -9,5 +9,9 @@ markdownify
 langchain 
 langchain-community 
 langchain-openai
+langchain-core
+langchain-text-splitters
 duckduckgo-search
+crewai
+crewai-tools
 # google-search-results
