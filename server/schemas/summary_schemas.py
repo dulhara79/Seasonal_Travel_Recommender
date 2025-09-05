@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 class SummaryAgentInputSchema(BaseModel):
@@ -5,7 +7,6 @@ class SummaryAgentInputSchema(BaseModel):
     season: str = None
     start_date: str = None
     end_date: str = None
-    preferences: list[str]= []
     no_of_traveler: int = None
     budget: str = None
     user_preferences: list[str] = []
@@ -13,8 +14,8 @@ class SummaryAgentInputSchema(BaseModel):
     locations_to_visit: list[str] = []
     activities: list[str] = []
     packing_list: list[str] = []
-    additional_info: str = None
-    status: str = None
+    additional_info: Optional[str] = None
+    status: Optional[str] = None
     messages: list[dict] = []
 
 class SummaryAgentOutputSchema(BaseModel):
