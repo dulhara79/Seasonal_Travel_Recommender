@@ -15,4 +15,6 @@ markdownify
 duckduckgo-search
 crewai
 crewai-tools
+crewai
+crewai-tools
 # google-search-results
