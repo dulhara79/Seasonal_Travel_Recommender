@@ -256,12 +256,15 @@ if isinstance(raw_response, dict):
         # Fallback: try to stringify the whole payload (in case a different return shape is used)
         model_output = str(raw_response)
 else:
+
     model_output = str(raw_response)
 
 # Parse to Pydantic object (or show a helpful error)
 try:
+
     structured_response = parser.parse(model_output)
     print(structured_response.json(indent=2, ensure_ascii=False))
+    
 except Exception as e:
     print("Error parsing response:", e)
     print("Raw model output:")
