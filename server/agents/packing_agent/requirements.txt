@@ -1,8 +1,7 @@
-langchain 
-wikipedia 
-langchain-community 
-langchain-openai
-langchain-anthropic
-python-dotenv
+fastapi
+uvicorn
 pydantic
-duckduckgo-search
+python-dotenv
+openai
+bleach
+python-dateutil
