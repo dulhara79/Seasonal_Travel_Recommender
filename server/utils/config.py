@@ -40,5 +40,7 @@ EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
 
 # Activity Recommender
-ACTIVITY_FAISS_DIR = os.getenv('ACTIVITY_FAISS_DIR', "../../data/activity_faiss")
-ACTIVITY_SOURCES_JSON = os.getenv('ACTIVITY_SOURCES_JSON', "../../data/activity_sources.json")
+ACTIVITY_FAISS_DIR = os.getenv('ACTIVITY_FAISS_DIR', "data/activity_faiss")
+ACTIVITY_SOURCES_JSON = os.getenv('ACTIVITY_SOURCES_JSON', "data/activity_sources.json")
+
+ORCHESTRATOR_CHROMA_DIR = os.getenv('ORCHESTRATOR_CHROMA_DIR', "data/orchestrator_chroma")

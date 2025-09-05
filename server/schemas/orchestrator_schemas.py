@@ -6,7 +6,7 @@ class OrchestratorAgent4InputSchema(BaseModel):
     query: Optional[str] = None
 
 class OrchestratorAgent4OutpuSchema(BaseModel):
-    location: Optional[str] = None
+    destination: Optional[str] = None
     season: Optional[str] = "Dry Season"
     start_date: Optional[str] = None
     end_date: Optional[str] = None

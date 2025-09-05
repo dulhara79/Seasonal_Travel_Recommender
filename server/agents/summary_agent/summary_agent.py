@@ -16,6 +16,8 @@ def generate_summary(state: SummaryAgentInputSchema) -> SummaryAgentOutputSchema
     using the collected information in SummaryAgentInputSchema.
     """
 
+    print(f"Generating summary for state: {state}")
+
     # --- Build raw summary parts ---
     response_parts = []
 
