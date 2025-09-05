@@ -117,8 +117,8 @@ def _expand_locations(primary: str, suggest_locations: List[str]) -> List[str]:
 def _build_query_blocks(inp: ActivityAgentInput) -> List[str]:
     prefs = ", ".join(inp.user_preferences or inp.preferences or [])
     blocks = [
-        f"Activities in/near {inp.location}",
-        f"Best things to do in {inp.location} for {inp.type_of_trip or 'travelers'}",
+        f"Activities in/near {inp.destination}",
+        f"Best things to do in {inp.destination} for {inp.type_of_trip or 'travelers'}",
         f"Budget: {inp.budget or 'any'}; Season: {inp.season or 'any'}; Preferences: {prefs or 'any'}",
     ]
     if inp.suggest_locations:
@@ -170,7 +170,7 @@ SUGGEST_PROMPT = ChatPromptTemplate.from_messages([
         "Trip JSON:\n{trip}\n\n"
         "Top-k retrieved context (truncated):\n{context}\n\n"
         "Now produce JSON with this shape strictly:\n"
-        "{{{{\n  \"location\": string,\n  \"overall_theme\": string,\n  \"day_plans\": [\n    {{{{\n      \"date\": \"YYYY-MM-DD\",\n      \"suggestions\": [\n        {{{{\n          \"time_of_day\": \"morning|noon|evening|night\",\n          \"title\": string,\n          \"why\": string,\n          \"source_hints\": [string]\n        }}}}\n      ]\n    }}}}\n  ],\n  \"notes\": string\n}}}}\n"
+        "{{{{\n  \"destination\": string,\n  \"overall_theme\": string,\n  \"day_plans\": [\n    {{{{\n      \"date\": \"YYYY-MM-DD\",\n      \"suggestions\": [\n        {{{{\n          \"time_of_day\": \"morning|noon|evening|night\",\n          \"title\": string,\n          \"why\": string,\n          \"source_hints\": [string]\n        }}}}\n      ]\n    }}}}\n  ],\n  \"notes\": string\n}}}}\n"
     )),
 ])
 
@@ -194,10 +194,12 @@ def suggest_activities(inp: ActivityAgentInput) -> ActivityAgentOutput:
         # Build index on first run
         build_or_refresh_index()
 
+    print(f"Activity agent input: {inp}")
+
     vs = _load_vectorstore()
     llm = _llm()
 
-    locs = _expand_locations(inp.location, inp.suggest_locations)
+    locs = _expand_locations(inp.destination, inp.suggest_locations)
     retrieve = _retriever_for_location(vs, locs, llm)
 
     # Compose a query string from the input
@@ -237,7 +239,7 @@ def suggest_activities(inp: ActivityAgentInput) -> ActivityAgentOutput:
             day_plans.append(DayPlan(
                 date=d.strftime("%Y-%m-%d"),
                 suggestions=[
-                    TimeSlotSuggestion(time_of_day="morning", title=f"Explore around {inp.location}",
+                    TimeSlotSuggestion(time_of_day="morning", title=f"Explore around {inp.destination}",
                                        why="Good light and cooler temps.", source_hints=[]),
                     TimeSlotSuggestion(time_of_day="noon", title="Local lunch & short indoor stop",
                                        why="Heat avoidance.", source_hints=[]),
@@ -248,8 +250,19 @@ def suggest_activities(inp: ActivityAgentInput) -> ActivityAgentOutput:
                 ],
             ))
         return ActivityAgentOutput(
-            location=inp.location,
-            overall_theme=f"Activities near {inp.location} tailored to {inp.type_of_trip or 'your trip'}",
+            destination=inp.destination,
+            overall_theme=f"Activities near {inp.destination} tailored to {inp.type_of_trip or 'your trip'}",
             day_plans=day_plans,
             notes="LLM returned non-JSON; provided fallback suggestions.",
+            season=inp.season,
+            start_date=inp.start_date,
+            end_date=inp.end_date,
+            preferences=inp.preferences,
+            no_of_traveler=inp.no_of_traveler,
+            budget=inp.budget,
+            user_preferences=inp.user_preferences,
+            type_of_trip=inp.type_of_trip,
+            suggest_locations=inp.suggest_locations,
+            additional_info=inp.additional_info,
+            status="completed",
         )
