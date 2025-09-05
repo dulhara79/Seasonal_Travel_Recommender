@@ -49,25 +49,26 @@ from .packing_agent import generate_packing_list
 if __name__ == "__main__":
     # Sample input exactly like the one you showed
     sample = ActivityAgentInput(
-        location="Unawatuna Beach",
-        season="monsoon",
-        start_date="2025-07-01",
-        end_date="2025-07-05",
+        location="Anuradhapura",
+        season="winter",
+        start_date="2025-12-20",
+        end_date="2025-12-25",
         preferences=[],
-        no_of_traveler=2,
-        budget="low",
-        user_preferences=["beach relaxation", "street food"],
-        type_of_trip="friends",
-        suggest_locations=["galle fort", "mirissa"]
+        no_of_traveler=3,
+        budget="high",
+        user_preferences=["cultural immersion", "religious visits"],
+        type_of_trip="family",
+        suggest_locations=["Mihintale", "Ruwanwelisaya", "Jaya Sri Maha Bodhi"]
+
 
     )
 
     # Assume your "suggest_activities" will return a list later.
     # For now, provide a realistic stub:
     suggested_activities = [
-        "Beach day at Unawatuna",
-        "Visit Galle Fort",
-        "Whale watching tour"
+         "Temple visit at Ruwanwelisaya",
+  "Climb Mihintale rock",
+  "Evening meditation near Jaya Sri Maha Bodhi"
     ]
 
     use_llm = bool(os.getenv("OPENAI_API_KEY"))
