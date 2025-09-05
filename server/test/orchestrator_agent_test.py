@@ -8,6 +8,8 @@ if __name__ == "__main__":
     # query = "Plan honeymoon trip to nuwara eliya in december for 7 days. Prefer cool climate, nature, and romantic vibes. Budget is medium. Need suggestions for accommodations, activities, and dining options. travel with my 1 kid (5 years old)."
     # query="travel to Henanegala Len Viharaya from 2025-09-06 to 2025-09-08. Prefer village vibes. solo"
 
+    print(f"Query words count: {len(query.split())}\n")
+
     state = OrchestratorAgent4InputSchema(
         query=query
     )
