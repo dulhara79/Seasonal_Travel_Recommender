@@ -34,13 +34,55 @@ def chat(user_query: UserQuerySchema):
     # run the workflow
     result = workflow.invoke(orchestrator_input)
 
-    # If workflow returns SummaryAgentOutputSchema, extract cleanly
+    print(f"\n======\nWorkflow result: {result}")
+
+    # Normalize result to extract summary and status reliably.
+    summary = None
+    status = "unknown"
+
+    # Case 1: result is a dict (could be orchestrator output, activity output or summary output)
     if isinstance(result, dict):
-        summary = result.get("summary")
-        status = result.get("status", "unknown")
+        # Direct summary field
+        if "summary" in result:
+            summary = result.get("summary")
+            status = result.get("status", status)
+        else:
+            # Maybe the last node returned a nested dict (e.g., activity -> summary)
+            # Try common keys
+            for key in ("output", "result", "data"):
+                if isinstance(result.get(key), dict) and "summary" in result.get(key):
+                    summary = result.get(key).get("summary")
+                    status = result.get(key).get("status", status)
+                    break
+            # As a fallback, if the dict contains only primitive keys, stringify it
+            if summary is None:
+                # Try to find any string value that looks like a markdown summary
+                for v in result.values():
+                    if isinstance(v, str) and v.strip().startswith("#"):
+                        summary = v
+                        break
+                # Last resort: stringify the whole dict
+                if summary is None:
+                    summary = str(result)
+
     else:
-        summary = str(result)
-        status = "unknown"
+        # Non-dict results (could be pydantic model or plain string)
+        try:
+            # Pydantic models have dict() or model_dump()
+            if hasattr(result, "model_dump"):
+                rd = result.model_dump()
+            elif hasattr(result, "dict"):
+                rd = result.dict()
+            else:
+                rd = None
+
+            if isinstance(rd, dict):
+                summary = rd.get("summary") or rd.get("output") or str(rd)
+                status = rd.get("status", status)
+            else:
+                summary = str(result)
+        except Exception:
+            summary = str(result)
 
     return {
         "query": user_query.query,
@@ -50,3 +92,8 @@ def chat(user_query: UserQuerySchema):
             "format": "markdown"
         }
     }
+
+
+######
+##  https://chat.deepseek.com/a/chat/s/aa21272b-9b60-44fb-8957-68113106d281
+#######
