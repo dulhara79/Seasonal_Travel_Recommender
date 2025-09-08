@@ -1,4 +1,4 @@
-# weather_agent/schemas.py
+# weather_agent/summary_schemas.py
 from pydantic import BaseModel
 from typing import List
 

@@ -1,115 +1,119 @@
-# Seasonal Travel Recommender 🏖️
 
-> Seasonal Travel Recommender - Weather Data Agent, Activity Suggestor, Packing List Generator
 
-Seasonal Travel Recommender is a small multi-agent AI system that helps travellers plan short trips based on season and weather. Given a free-text user query (destination, dates, preferences), the system checks the weather for the travel dates, suggests suitable activities, and generates a practical packing list.
+# Seasonal Travel Recommender
+> Seasonal Travel Recommender - Orchestrator, Location Agent, Activity Suggestor, Packing List Generator, Summary Agent
 
-## Vision
-Make trip planning quick and practical by combining weather-aware recommendations with activity suggestions and a concise packing checklist. The system is designed for demonstrations, coursework, and as a starting point for a lightweight web or CLI travel assistant.
+A lightweight multi-agent travel assistant that combines location, activity suggestions, and packing-list generation to help travellers plan short trips. The project is implemented as a FastAPI backend (agents) and a small React + Vite frontend.
 
-## Core features
-- Parse free-text user requests (destination, dates, preferences).
-- Query free weather APIs for the destination and date range.
-- Suggest activities matched to weather, season and user preferences.
-- Generate a packing list derived from forecast and selected activities.
-- Produce a final, conversational recommendation combining all agents' outputs.
+Overview
+- Purpose: Given a free-text user request (destination, dates, preferences), the system extracts trip details, fetches or reasons about weather, suggests activities tailored to the forecast and preferences, and produces a concise packing list and a friendly trip summary.
+- Audience: demo projects, coursework, and a starting point for building more advanced travel assistants.
 
-## Agents (components)
+Quick architecture
+- Frontend (client): React + Vite app in `client/` that presents a Conversation UI and Summary view.
+- Backend (server): FastAPI app in `server/` exposing `/api` endpoints and orchestrating a small workflow of agents using a state graph.
+- Agents: modular Python functions that implement responsibilities such as orchestrating user input, suggesting activities (RAG + LLM), and creating a final markdown summary.
 
-1. Conversation Agent (NLP + Orchestration)
-	 - Input: raw user message.
-	 - Responsibilities: extract destination, dates and preferences; call other agents; format final natural-language reply.
+Text diagram
 
-2. Weather Data Agent
-	 - Input: destination + dates.
-	 - Responsibilities: resolve location to coordinates (when needed), call a free weather API (e.g. Open-Meteo), return structured forecast (daily temps, precipitation, conditions).
+Client (React) ←→ FastAPI gateway (/api) → Workflow (orchestrator → activity_agent → summary_agent)
 
-3. Activity Suggester
-	 - Input: forecast + user preferences.
-	 - Responsibilities: map weather → suitable activities (rule-based + small location-specific dataset). Provide alternatives and short explanations.
+Key components
+- `server/api/main.py` — FastAPI app with CORS and health endpoint.
+- `server/api/route.py` — Exposes `/api/chat` which runs the workflow (uses `server.workflow.graph_builder.build_graph`).
+- `server/workflow/graph_builder.py` — Builds a StateGraph connecting `orchestrator_agent` → `activity_agent` → `summary_agent`.
+- `server/agents/orchestrator_agent/orchestrator_agent.py` — LLM-based extractor to parse user queries (destination, dates, preferences) and optionally ask follow-up questions.
+- `server/agents/activity_agent_1/activity_agent.py` — RAG-backed activity suggester (FAISS index + OpenAI embeddings + LLM fallback).
+- `server/agents/summary_agent/summary_agent.py` — Polishes collected details into a friendly Markdown trip summary using the LLM.
 
-4. Packing List Generator
-	 - Input: forecast + chosen activities.
-	 - Responsibilities: produce a concise packing checklist (clothing, rain/sun protection, activity-specific gear).
+Repository layout (short)
+- client/ — React frontend (Vite). See `client/README.md` for details.
+- server/ — FastAPI backend, agents, workflows, and schemas.
+- data/ — Prebuilt vector stores and Chroma DB used by agents (`data/activity_faiss`, `data/orchestrator_chroma`).
 
-5. Aggregator / Orchestrator (part of Conversation Agent)
-	 - Input: JSON outputs from other agents.
-	 - Responsibilities: combine results and produce a friendly, explainable response for the user.
+Requirements (selected)
+- Python (3.10+ recommended)
+- See `server/requirements.txt` for Python dependencies (FastAPI, Uvicorn, LangChain, OpenAI bindings, FAISS support, etc.).
+- Node.js + npm (for the frontend). See `client/package.json`.
 
-## Example
-User: "I'm going to Kandy, Sri Lanka from 2024-12-15 to 2024-12-20. I like cultural activities."
+Local setup & run (server)
+1. Create a Python virtual environment and activate it.
 
-Minimal structured outputs (examples):
-
-Weather Data Agent →
-```
-{
-	"avg_temp": "26°C",
-	"conditions": [
-		{"date":"2024-12-15","status":"Sunny"},
-		{"date":"2024-12-16","status":"Cloudy"},
-		{"date":"2024-12-17","status":"Rainy"}
-	]
-}
+```powershell
+cd server
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-Activity Suggester →
-```
-{
-	"activities": [
-		{"day":"2024-12-15","activity":"Visit Temple of the Tooth"},
-		{"day":"2024-12-16","activity":"Royal Botanical Gardens"},
-		{"day":"2024-12-17","activity":"Indoor tea tasting tour"}
-	]
-}
+2. Provide LLM credentials and configuration. The code references `server/utils/config.py` and environment variables such as `OPENAI_API_KEY` and `LLM_MODEL`. Create a `.env` or export the variables in your shell (do NOT commit secrets):
+
+```powershell
+$env:OPENAI_API_KEY = "sk-..."
+$env:LLM_MODEL = "gpt-4o-mini"  ; # or another supported model
 ```
 
-Packing List Generator →
+3. (Optional) Build the activity FAISS index the first time the activity agent runs; the agent will build it automatically if missing. You can pre-build by running a small Python script that calls `build_or_refresh_index()` from `server/agents/activity_agent_1/activity_agent.py`.
+
+4. Start the FastAPI server (from the `server` directory):
+
+```powershell
+# from repository root
+cd server
+uvicorn server.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-{
-	"packing_list":["Light cotton clothes","Umbrella","Walking shoes","Sunscreen","Modest attire for temples"]
-}
+
+The server exposes `/health` and `POST /api/chat`.
+
+Local setup & run (client)
+1. Install dependencies and start Vite dev server:
+
+```powershell
+cd client
+npm install
+npm run dev
 ```
 
-Final response (Aggregator): short human-friendly paragraph summarising weather, suggested activities, and packing.
+2. The client expects the backend to be available on the address allowed in CORS (`http://localhost:5173` is allowed in `server/api/main.py`). The client calls the gateway endpoints (see `client/src/pages/Conversation.jsx`).
 
-## Conversation flow (user journey)
-- Greeting / Clarify intent
-- Ask or extract missing details (dates, duration, preferences)
-- Call Weather Agent and present a concise weather summary
-- Suggest activities (ask for acceptance or alternatives)
-- If accepted, produce packing list and closing message
+API (important endpoints)
+- GET /health — Simple health check returning {"status": "ok"}.
+- POST /api/chat — Accepts a JSON body matching `UserQuerySchema` (see `server/schemas/userQuery_schema.py`) with a `query` string. The server runs the workflow and returns `{ query, output: { summary, status, format } }` where `summary` is Markdown produced by the agents.
 
-The system is designed to behave like a helpful travel assistant: ask clarifying questions, explain why recommendations were made (explainability), and offer alternatives.
+Data & indexes
+- `data/activity_faiss/` — FAISS index used by the activity agent. The agent will create or refresh this index from web sources when needed.
+- `data/orchestrator_chroma/` — Chroma DB used by orchestrator agent (if present).
 
-## Team split (suggested)
-- Conversation & Orchestration: NLP, LLM prompts, final formatting.
-- Weather & IR: location resolution, API integration and data parsing.
-- Activity Suggester: rules, location/activity dataset, fairness checks.
-- Packing & Security: packing rules, basic authentication and API key management, commercialization notes.
+Testing
+- Unit tests are under `server/test/`. Run them with pytest from the `server` directory after setting environment variables and dependencies.
 
-## Security & privacy notes
-- Keep API keys out of source control (use environment variables or secret manager).
-- Sanitize user input before any external query to avoid injection attacks.
-- Avoid logging sensitive user data; if storing any personal data, follow minimal retention and secure storage.
+```powershell
+cd server
+# activate venv first
+pip install pytest
+pytest -q
+```
 
-## Responsible AI
-- Explainability: accompany suggestions with short reasons (e.g. "suggested because forecast shows sunny weather").
-- Fairness: include low-cost and no-cost options among activity suggestions.
-- Privacy: don't share user locations or dates publicly.
+Notes, limitations & security
+- Secrets: keep API keys out of source control. Use environment variables or a secrets manager.
+- Cost & rate limits: LLM calls may incur cost; configure model and temperature in `server/utils/config.py`.
+- Fallbacks: several agents include LLM parsing fallbacks and heuristics (e.g., activity agent provides simple suggestions if RAG/LLM output isn't strict JSON).
+- Missing files: some placeholders exist (e.g., agent modules with minimal content) — check the `server/agents` folder and tests to see intended behavior.
 
-## Commercialization ideas
-- Free tier: weather + 3 activity suggestions + basic packing list.
-- Premium tier: multi-day itineraries, live updates, offline packing checklist, richer personalization.
+Developer notes & next steps
+- Improve agent discovery and gateway proxying so the frontend can automatically list available agents.
+- Add an optional CLI runner for the orchestrator for offline testing (the orchestrator agent supports interactive follow-ups in `call_orchestrator_agent`).
+- Add proper tests for the RAG pipeline and LLM outputs; include CI that verifies the FAISS index build step is reproducible.
 
+Contributing
+- Please open issues and PRs. Keep commits small and document any added external data sources. Add `.env.example` entries for required environment variables.
 
----
-## Contributors:
-- [Dulhara Kaushalya](https://github.com/dulhara79)  
-- [Senuvi Layathma](https://github.com/SENUVI20)
-- [Dewdu Sendanayake](https://github.com/DewduSendanayake)
-- [Uvindu Seneviratne](https://github.com/UVINDUSEN)
+Maintainers / contributors
+- Dulhara Kaushalya — https://github.com/dulhara79
+- Senuvi Layathma — https://github.com/SENUVI20
+- Dewdu Sendanayake — https://github.com/DewduSendanayake
+- Uvindu Seneviratne — https://github.com/UVINDUSEN
 
----
-##  License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+License
+- MIT — see `LICENSE` file.
+
+If you want, I can now commit this README update to the repository (I will overwrite the current `README.md`) and then run a quick verification read-back. Say "Apply README" to proceed.
