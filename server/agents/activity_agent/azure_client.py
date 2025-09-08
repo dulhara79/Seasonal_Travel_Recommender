@@ -1,5 +1,6 @@
 # Handles Azure LLM authentication and API calls
 
+
 # Encapsulates Azure API key, endpoint, model selection, and actual LLM call.
 
 
@@ -16,3 +17,4 @@ def get_activity_suggestions(prompt):
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content
+

@@ -16,3 +16,4 @@ def handle_request(request, full_request):
     else:
         # Send activities to orchestrator only
         pass
+

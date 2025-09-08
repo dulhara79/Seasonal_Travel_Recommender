@@ -17,3 +17,4 @@ def build_prompt(destination, dates, weather, preference):
 #     except json.JSONDecodeError:
 #         return {"error": "Failed to parse activity suggestions."}
 
+
