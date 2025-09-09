@@ -64,7 +64,7 @@ except Exception:
 
 # Where to read default sources from
 try:
-    from server.utils.activity_sources import default_sources
+    from server.agents.activity_agent.activity_sources import default_sources
 except Exception:
     # fallback empty
     default_sources = []
