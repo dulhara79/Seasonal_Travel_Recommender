@@ -24,3 +24,8 @@ app.include_router(router, prefix="/api")
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+# startup event
+@app.on_event("startup")
+def startup_event():
+    print(f"🚀 FastAPI server is running! Listening for requests... ")
