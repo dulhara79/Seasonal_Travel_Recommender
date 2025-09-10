@@ -3,11 +3,14 @@ import json
 from dotenv import load_dotenv
 from google import genai
 
+from server.utils.config import GEMINI_API_KEY
+
 # ----------------------
 # Load environment variables
 # ----------------------
-load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# load_dotenv()
+# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is not set in your .env file.")
 
@@ -49,13 +52,13 @@ Each object must have:
 Do NOT include extra explanations outside JSON.
 
 User trip details:
-Destination: {state.get('destination')}
-Start date: {state.get('start_date')}
-End date: {state.get('end_date')}
-Number of travelers: {state.get('no_of_traveler')}
-Budget: {state.get('budget')}
-Preferences: {', '.join(state.get('user_preferences', []))}
-Type of trip: {state.get('type_of_trip')}
+Destination: {state.destination}
+Start date: {state.start_date}
+End date: {state.end_date}
+Number of travelers: {state.no_of_traveler}
+Budget: {state.budget}
+Preferences: {', '.join(state.user_preferences), []}
+Type of trip: {state.type_of_trip}
 
 Example output:
 {{
@@ -85,20 +88,20 @@ Example output:
     parsed = safe_parse_locations(text_output, prev_response)
     return parsed
 
-# ----------------------
-# Example usage
-# ----------------------
-if __name__ == "__main__":
-    # Example trip input
-    state = {
-        "destination": "jaffna, Sri Lanka",
-        "start_date": "2025-12-10",
-        "end_date": "2025-12-17",
-        "no_of_traveler": 2,
-        "budget": "medium",
-        "user_preferences": ["hiking", "cultural sites", "nature photography"],
-        "type_of_trip": "adventure"
-    }
-
-    output = run_location_agent(state)
-    print(json.dumps(output, indent=2))
+# # ----------------------
+# # Example usage
+# # ----------------------
+# if __name__ == "__main__":
+#     # Example trip input
+#     state = {
+#         "destination": "jaffna, Sri Lanka",
+#         "start_date": "2025-12-10",
+#         "end_date": "2025-12-17",
+#         "no_of_traveler": 2,
+#         "budget": "medium",
+#         "user_preferences": ["hiking", "cultural sites", "nature photography"],
+#         "type_of_trip": "adventure"
+#     }
+#
+#     output = run_location_agent(state)
+#     print(json.dumps(output, indent=2))
