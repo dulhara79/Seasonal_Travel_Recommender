@@ -20,3 +20,6 @@ class TravelState(BaseModel):
 
     # From Summary Agent
     summary: Optional[str] = None
+
+    # Internal state
+    retry_count: int = 0
