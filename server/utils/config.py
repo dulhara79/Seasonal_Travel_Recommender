@@ -13,6 +13,10 @@ ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
 
+# Gemini
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
 # Weather
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 WEATHER_BASE_URL = os.getenv('WEATHER_BASE_URL')
