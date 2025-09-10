@@ -1,5 +1,6 @@
 import re
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from typing import Optional
 
 from server.agents.orchestrator_agent.vector_store import add_texts_to_vectorstore
 
@@ -9,8 +10,14 @@ SAFE_TEXT_PATTERNS = re.compile(r"^[\s\S]{0,2000}$")
 # Word limit (e.g., 300 words max)
 MAX_WORDS = 300
 
-def sanitize_input(text: str) -> str:
-    """Sanitize input to prevent XSS, SQLi, and script injection."""
+def sanitize_input(text: Optional[str]) -> str:
+    """Sanitize input to prevent XSS, SQLi, and script injection.
+    Safely handles None/empty input by returning an empty string.
+    """
+    if not text:
+        print('Debug: sanitize_input received empty or None input.')
+        return ""
+
     # # Input size validation
     # if not SAFE_TEXT_PATTERNS.match(text):
     #     raise HTTPException(
@@ -24,6 +31,8 @@ def sanitize_input(text: str) -> str:
     #         status_code=status.HTTP_400_BAD_REQUEST,
     #         detail="Input exceeds maximum word limit."
     #     )
+
+    print(f"Debug: Original input length: {len(text)} characters, {len(text.split())} words")
 
     # Remove HTML/JS script tags
     text = re.sub(r"(?i)<\s*script.*?>.*?<\s*/\s*script\s*>", "", text)
