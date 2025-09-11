@@ -15,6 +15,13 @@ import os
 import json
 from datetime import datetime, timedelta
 from typing import List, Optional
+from dotenv import load_dotenv
+
+# load .env from the project root
+load_dotenv()
+
+# quick sanity check (optional, remove later)
+print("USER_AGENT loaded as:", os.getenv("USER_AGENT"))
 
 # LangChain / community components
 from langchain_community.document_loaders import WebBaseLoader
@@ -28,13 +35,13 @@ except Exception:
 
 # Embeddings & LLM
 try:
-    from langchain.embeddings.openai import OpenAIEmbeddings
+    from langchain_openai import OpenAIEmbeddings
 except Exception:
     # fallback import path
     from langchain.embeddings import OpenAIEmbeddings
 
 try:
-    from langchain.chat_models import ChatOpenAI
+    from langchain_community.chat_models import ChatOpenAI
 except Exception:
     from langchain.chat_models import ChatOpenAI
 
