@@ -15,10 +15,21 @@ import os
 import json
 from datetime import datetime, timedelta
 from typing import List, Optional
+from dotenv import load_dotenv
+
+# load .env from the project root
+load_dotenv()
+
+# quick sanity check (optional, remove later)
+print("USER_AGENT loaded as:", os.getenv("USER_AGENT"))
 
 # LangChain / community components
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# Embeddings & LLM (modern imports)
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+
 
 # FAISS import compatibility (community vs core)
 try:
@@ -26,17 +37,18 @@ try:
 except Exception:
     from langchain.vectorstores import FAISS
 
-# Embeddings & LLM
-try:
-    from langchain.embeddings.openai import OpenAIEmbeddings
-except Exception:
-    # fallback import path
-    from langchain.embeddings import OpenAIEmbeddings
+# # Embeddings & LLM
+# try:
+#     from langchain_openai import OpenAIEmbeddings
+# except Exception:
+#     # fallback import path
+#     from langchain_openai import OpenAIEmbeddings
 
-try:
-    from langchain.chat_models import ChatOpenAI
-except Exception:
-    from langchain.chat_models import ChatOpenAI
+# try:
+#     # from langchain_community.chat_models import ChatOpenAI
+#     from langchain_openai import ChatOpenAI
+# except Exception:
+#     from langchain.chat_models import ChatOpenAI
 
 # MultiQuery retriever (improves recall by paraphrasing queries)
 try:
@@ -197,9 +209,9 @@ def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
 
     def retrieve(query: str):
         if mqr:
-            docs = mqr.get_relevant_documents(query)
+            docs = mqr.invoke(query)
         else:
-            docs = base_ret.get_relevant_documents(query)
+            docs = base_ret.invoke(query)
 
         # Light location filter by tag presence or substring match
         keep = []
@@ -309,26 +321,70 @@ def suggest_activities(inp: dict) -> dict:
     trip_json = json.dumps(inp, indent=2, ensure_ascii=False)
     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
 
+    # print("[activity_agent] Calling LLM with prompt (truncated)...")
+    # # call LLM
+    # response = llm.generate([{"role": "user", "content": prompt_text}])
+    # # response format may differ by langchain version - try to extract text safely
+    # text = ""
+    # try:
+    #     # new-style .generations
+    #     gens = response.generations
+    #     if isinstance(gens, list) and gens:
+    #         # each item in gens is a list of Generation objects
+    #         first = gens[0]
+    #         if isinstance(first, list):
+    #             text = first[0].text
+    #         else:
+    #             text = str(first[0])
+    # except Exception:
+    #     try:
+    #         text = response.llm_output.get("content", "") or str(response)
+    #     except Exception:
+    #         text = str(response)
+
+    
+    
+    # --- LLM call: use proper LangChain message objects (HumanMessage) ---
+    from langchain.schema import HumanMessage
+
     print("[activity_agent] Calling LLM with prompt (truncated)...")
-    # call LLM
-    response = llm.generate([{"role": "user", "content": prompt_text}])
-    # response format may differ by langchain version - try to extract text safely
     text = ""
+
+    # Primary attempt: use generate with a nested list of HumanMessage objects
     try:
-        # new-style .generations
-        gens = response.generations
+        response = llm.generate([[HumanMessage(content=prompt_text)]])
+        gens = getattr(response, "generations", None)
         if isinstance(gens, list) and gens:
-            # each item in gens is a list of Generation objects
             first = gens[0]
-            if isinstance(first, list):
+            # gens[0] is usually a list of Generation objects
+            if isinstance(first, list) and first and hasattr(first[0], "text"):
                 text = first[0].text
             else:
-                text = str(first[0])
-    except Exception:
+                text = str(first[0]) if first else str(response)
+        else:
+            # fallback: try older .llm_output or string form
+            text = getattr(response, "llm_output", {}).get("content", "") or str(response)
+    except Exception as e:
+        # If generate fails for this version, try calling the model directly
         try:
-            text = response.llm_output.get("content", "") or str(response)
+            # Many Chat models support __call__ or .predict
+            text = llm.predict(prompt_text)  # best-effort; may raise if not supported
         except Exception:
-            text = str(response)
+            try:
+                # final fallback: try calling llm as a callable with a HumanMessage
+                res = llm([HumanMessage(content=prompt_text)])
+                # res could be a string or a ChatResult-like object
+                if isinstance(res, str):
+                    text = res
+                else:
+                    # attempt to extract typical attributes
+                    text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
+            except Exception as e2:
+                # If all attempts fail, surface a clear message for debugging
+                text = f"LLM call failed: {e} | fallback error: {e2}"
+
+
+
 
     # Attempt to parse JSON
     try:
