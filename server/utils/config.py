@@ -1,7 +1,12 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+# load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+
+# load .env located at server/.env (relative, robust across machines)
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))   # server/
+DOTENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=DOTENV_PATH)
 
 # Database
 DATABASE_URL = os.getenv('DATABASE_URL')
