@@ -27,23 +27,28 @@ print("USER_AGENT loaded as:", os.getenv("USER_AGENT"))
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Embeddings & LLM (modern imports)
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+
+
 # FAISS import compatibility (community vs core)
 try:
     from langchain_community.vectorstores import FAISS
 except Exception:
     from langchain.vectorstores import FAISS
 
-# Embeddings & LLM
-try:
-    from langchain_openai import OpenAIEmbeddings
-except Exception:
-    # fallback import path
-    from langchain.embeddings import OpenAIEmbeddings
+# # Embeddings & LLM
+# try:
+#     from langchain_openai import OpenAIEmbeddings
+# except Exception:
+#     # fallback import path
+#     from langchain_openai import OpenAIEmbeddings
 
-try:
-    from langchain_community.chat_models import ChatOpenAI
-except Exception:
-    from langchain.chat_models import ChatOpenAI
+# try:
+#     # from langchain_community.chat_models import ChatOpenAI
+#     from langchain_openai import ChatOpenAI
+# except Exception:
+#     from langchain.chat_models import ChatOpenAI
 
 # MultiQuery retriever (improves recall by paraphrasing queries)
 try:
@@ -204,9 +209,9 @@ def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
 
     def retrieve(query: str):
         if mqr:
-            docs = mqr.get_relevant_documents(query)
+            docs = mqr.invoke(query)
         else:
-            docs = base_ret.get_relevant_documents(query)
+            docs = base_ret.invoke(query)
 
         # Light location filter by tag presence or substring match
         keep = []
