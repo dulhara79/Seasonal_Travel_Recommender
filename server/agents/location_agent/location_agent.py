@@ -45,8 +45,8 @@ from server.schemas.location_agent_schemas import LocationAgentInputSchema, Loca
 # ----------------------
 # Load environment variables
 # ----------------------
-# load_dotenv()
-# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is not set in your .env file.")
@@ -126,7 +126,7 @@ Make sure the reason explicitly refers to why the place is suitable for these da
 # ----------------------
 if __name__ == "__main__":
     state = {
-        "destination": "Jaffna, Sri Lanka",
+        "destination": "Galle",
         "start_date": "2025-12-10",
         "end_date": "2025-12-17",
         "no_of_traveler": 2,
