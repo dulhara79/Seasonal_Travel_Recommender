@@ -122,7 +122,7 @@ def run_llm_agent(
     if chat_history is None:
         chat_history = []
 
-    print(f"\nsanitized input: {state.query}\n")
+    print(f"\nDEBUG: sanitized input: {state.query}\n")
     sanitized_query = sanitize_input(state.query)
 
     if only_missing:
