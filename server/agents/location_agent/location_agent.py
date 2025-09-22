@@ -37,6 +37,7 @@ import json
 from dotenv import load_dotenv
 from google import genai
 
+
 # Import schemas
 from server.schemas.location_agent_schemas import LocationAgentInputSchema, LocationAgentOutputSchema
 
@@ -44,8 +45,9 @@ from server.schemas.location_agent_schemas import LocationAgentInputSchema, Loca
 # ----------------------
 # Load environment variables
 # ----------------------
-load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# load_dotenv()
+# GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY is not set in your .env file.")
 
@@ -94,6 +96,7 @@ Each object must have:
 Do NOT include extra explanations outside JSON.
 
 User trip details:
+
 Destination: {state.get('destination')}
 Start date: {state.get('start_date')}
 End date: {state.get('end_date')}
@@ -101,6 +104,7 @@ Number of travelers: {state.get('no_of_traveler')}
 Budget: {state.get('budget')}
 Preferences: {', '.join(state.get('user_preferences', []))}
 Type of trip: {state.get('type_of_trip')}
+
 """
 
     # Log communication flow
@@ -114,6 +118,7 @@ Type of trip: {state.get('type_of_trip')}
     text_output = response.text
     parsed = safe_parse_locations(text_output, prev_response)
     return parsed
+
 
 # ----------------------
 # Example demo (Progress Evidence)
@@ -135,3 +140,4 @@ if __name__ == "__main__":
 
     # Responsible AI reminder
     print("\nNote: All recommendations are anonymized and consider fairness & accessibility.")
+
