@@ -89,9 +89,9 @@ Return a JSON object with a single key "recommended_locations", which is a list 
 Each object must have:
 - "name": Name of the place
 - "type": Type of location (e.g., cultural, hiking/nature, scenic, adventure)
-- "reason": Why this place is recommended for the user
-
-Do NOT include extra explanations outside JSON.
+- "reason": Why this place is recommended for the user during the specific travel dates.
+            Mention typical weather, seasonal suitability, and any local events if relevant.
+Do NOT include explanations outside JSON.
 
 User trip details:
 Destination: {state.get('destination')}
@@ -101,10 +101,12 @@ Number of travelers: {state.get('no_of_traveler')}
 Budget: {state.get('budget')}
 Preferences: {', '.join(state.get('user_preferences', []))}
 Type of trip: {state.get('type_of_trip')}
+
+Make sure the reason explicitly refers to why the place is suitable for these dates.
 """
 
     # Log communication flow
-    print("[Comm Flow] User → LocationAgent → WeatherAgent → SeasonalAgent → RecommenderCore → User")
+    print("[Comm Flow] User → LocationAgent → RecommenderCore → User")
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -114,6 +116,7 @@ Type of trip: {state.get('type_of_trip')}
     text_output = response.text
     parsed = safe_parse_locations(text_output, prev_response)
     return parsed
+
 
 # ----------------------
 # Example demo (Progress Evidence)
