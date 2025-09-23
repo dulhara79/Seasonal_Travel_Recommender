@@ -16,6 +16,9 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 from dotenv import load_dotenv
+from fastapi.encoders import jsonable_encoder
+
+from server.schemas.global_schema import TravelState
 
 # load .env from the project root
 load_dotenv()
@@ -270,7 +273,7 @@ def _format_context(docs, max_chars: int = 2400) -> str:
     return "\n".join(out)
 
 
-def suggest_activities(inp: dict) -> dict:
+def suggest_activities(inp) -> dict:
     """
     High-level entry point your orchestrator can call.
     `inp` should be a dict with keys (similar to ActivityAgentInput):
@@ -282,6 +285,9 @@ def suggest_activities(inp: dict) -> dict:
 
     Returns a dict matching the JSON shape in the prompt above.
     """
+
+    print(f"DEBUG: suggest_activities called with inp={inp}")
+
     if not os.path.isdir(INDEX_DIR):
         print("[activity_agent] Index not found; building now (this may take a few minutes)...")
         build_or_refresh_index()
@@ -289,17 +295,17 @@ def suggest_activities(inp: dict) -> dict:
     vs = _load_vectorstore()
     llm = _llm()
 
-    destination = inp.get("destination", "")
-    suggest_locations = inp.get("suggest_locations", []) or []
+    destination = inp.destination  or ""
+    suggest_locations = inp.locations_to_visit or []
     locs = _expand_locations(destination, suggest_locations)
     retriever = _retriever_for_location(vs, locs, llm)
 
     # Build a compact query
-    prefs = ", ".join(inp.get("user_preferences") or inp.get("preferences") or [])
+    prefs = ", ".join(inp.user_preferences or [])
     blocks = [
         f"Activities in/near {destination}",
-        f"Best things to do in {destination} for {inp.get('type_of_trip', 'travelers')}",
-        f"Budget: {inp.get('budget','any')}; Season: {inp.get('season','any')}; Preferences: {prefs or 'any'}"
+        f"Best things to do in {destination} for {inp.type_of_trip, inp.no_of_traveler}",
+        f"Budget: {inp.budget,'any'}; Season: {inp.season,any}; Preferences: {prefs or 'any'}"
     ]
     if suggest_locations:
         blocks.append("Also consider: " + ", ".join(suggest_locations))
@@ -309,8 +315,8 @@ def suggest_activities(inp: dict) -> dict:
 
     # Format dates
     try:
-        start = datetime.strptime(inp.get("start_date"), "%Y-%m-%d") if inp.get("start_date") else datetime.today()
-        end = datetime.strptime(inp.get("end_date"), "%Y-%m-%d") if inp.get("end_date") else start
+        start = datetime.strptime(inp.start_date, "%Y-%m-%d") if inp.start_date else datetime.today()
+        end = datetime.strptime(inp.end_date, "%Y-%m-%d") if inp.end_date else start
     except Exception:
         start = datetime.today()
         end = start
@@ -318,7 +324,8 @@ def suggest_activities(inp: dict) -> dict:
 
     context = _format_context(docs)
 
-    trip_json = json.dumps(inp, indent=2, ensure_ascii=False)
+    # Convert inp to a JSON-serializable structure before dumping
+    trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
 
     # print("[activity_agent] Calling LLM with prompt (truncated)...")
@@ -342,8 +349,8 @@ def suggest_activities(inp: dict) -> dict:
     #     except Exception:
     #         text = str(response)
 
-    
-    
+
+
     # --- LLM call: use proper LangChain message objects (HumanMessage) ---
     from langchain.schema import HumanMessage
 
@@ -404,6 +411,7 @@ def suggest_activities(inp: dict) -> dict:
                     {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": []},
                 ]
             })
+        print(f"DEBUG: ACTIVITY AGENT LLM RAW RESPONSE: {day_plans, text}")
         return {
             "destination": destination,
             "overall_theme": f"Activities near {destination}",
@@ -412,9 +420,8 @@ def suggest_activities(inp: dict) -> dict:
             "status": "fallback"
         }
 
-
-# CLI entry: build index if script run directly
-if __name__ == "__main__":
-    print("Building / refreshing FAISS index for activity retrieval...")
-    build_or_refresh_index()
-    print("Done.")
+# # CLI entry: build index if script run directly
+# if __name__ == "__main__":
+#     print("Building / refreshing FAISS index for activity retrieval...")
+#     build_or_refresh_index()
+#     print("Done.")
