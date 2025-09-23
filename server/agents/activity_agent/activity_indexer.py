@@ -67,13 +67,13 @@ except Exception:
 try:
     from server.utils.config import (
         OPENAI_API_KEY,
-        LLM_MODEL,
+        OPENAI_MODEL,
         ACTIVITY_FAISS_DIR,
         ACTIVITY_SOURCES_JSON,
     )
 except Exception:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     ACTIVITY_FAISS_DIR = os.getenv("ACTIVITY_FAISS_DIR", "server/data/activity_faiss")
     ACTIVITY_SOURCES_JSON = os.getenv("ACTIVITY_SOURCES_JSON", "server/data/activity_sources.json")
 
@@ -231,9 +231,9 @@ def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
 
 def _llm():
     try:
-        return ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0.2)
+        return ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0.2)
     except TypeError:
-        return ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0.2)
+        return ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0.2)
 
 
 # A lightweight prompt assembler for the LLM (system + task instructions)
