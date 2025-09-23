@@ -7,6 +7,7 @@ from server.agents.location_agent.location_agent import run_location_agent
 from server.agents.orchestrator_agent.orchestrator_agent import call_orchestrator_agent
 from server.agents.summary_agent.summary_agent import generate_summary
 from server.agents.followup_agent.followup_agent import FollowUpAgent
+from server.agents.packing_agent.packing_agent import generate_packing_list
 
 from server.schemas.global_schema import TravelState
 from server.schemas.orchestrator_schemas import OrchestratorAgent4InputSchema
@@ -57,7 +58,7 @@ def followup_node(state: TravelState) -> TravelState:
     # Keep the followup_answers so callers can populate them in the next iteration
     updated["followup_answers"] = previous_answers
 
-    print(f"DEBUG: FollowUpAgent filled fields={fields}, still missing={list(missing_questions.keys())}")
+    print(f"\nDEBUG: FollowUpAgent filled fields={fields}, still missing={list(missing_questions.keys())}")
 
     return TravelState(**updated)
 
@@ -74,6 +75,15 @@ def activity_node(state: TravelState) -> TravelState:
     response = suggest_activities(state)
     day_plans = response.get("day_plans", [])
     return TravelState(**{**state.dict(), "activities": day_plans})
+
+
+def packing_node(state: TravelState) -> TravelState:
+    """Suggest packing list based on selected locations and activities."""
+    # suggest_packing expects the state (refer to agent implementation)
+    response = generate_packing_list(state)
+    packing_list = response.get("packing_list", [])
+    return TravelState(**{**state.dict(), "packing_list": packing_list})
+
 
 def summary_node(state: TravelState) -> TravelState:
     """Generate final structured summary for the trip plan with input sanitization."""
@@ -103,7 +113,7 @@ def orchestrator_router(state: TravelState) -> str:
     missing = [f for f in MANDATORY_FIELDS if getattr(state, f) in (None, "", [], 0)]
 
     if missing:
-        print(f"DEBUG: Missing fields {missing} → routing to followup.")
+        print(f"\nDEBUG: Missing fields {missing} → routing to followup.")
         return "followup"
     else:
         print("DEBUG: All mandatory fields filled → routing to location.")
@@ -117,7 +127,7 @@ def followup_router(state: TravelState) -> str:
 
     # If there are still missing fields and the agent produced questions, keep asking
     if missing and getattr(state, "missing_questions", {}):
-        print(f"DEBUG: Still missing fields {missing} → continuing followup.")
+        print(f"\nDEBUG: Still missing fields {missing} → continuing followup.")
         return "followup"
     else:
         print("DEBUG: Followup complete or no missing questions → routing to orchestrator.")
@@ -133,6 +143,7 @@ def build_graph():
     graph.add_node("followup", followup_node)
     graph.add_node("location", location_node)
     graph.add_node("activity", activity_node)
+    graph.add_node("packing", packing_node)
     graph.add_node("summary", summary_node)
 
     # Entry point
@@ -158,9 +169,10 @@ def build_graph():
         }
     )
 
-    # Normal flow
+    # Normal flow: location -> activity -> packing -> summary -> END
     graph.add_edge("location", "activity")
-    graph.add_edge("activity", "summary")
+    graph.add_edge("activity", "packing")
+    graph.add_edge("packing", "summary")
     graph.add_edge("summary", END)
 
     return graph.compile()
