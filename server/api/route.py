@@ -1,14 +1,25 @@
 # server/api/route.py
 
-from fastapi import APIRouter, Body, HTTPException
-from typing import Dict, Any, List
+from fastapi import APIRouter, Body, HTTPException, Depends
+from typing import Dict, Any
 from pydantic import BaseModel
 from server.schemas.global_schema import TravelState
 from server.schemas.userQuery_schema import UserQuerySchema
-from server.workflow.graph_builder import build_graph
+from server.api.auth import get_current_user
 
-# Build the workflow graph
-workflow = build_graph()
+try:
+    # Attempt to import and build the workflow graph. Optional deps like
+    # `langgraph` may be missing in some environments; keep the API usable
+    # by falling back to a minimal no-op workflow.
+    from server.workflow.graph_builder import build_graph
+
+    # Build the workflow graph
+    workflow = build_graph()
+except Exception as e:
+    print("Warning: workflow graph unavailable (optional).", str(e))
+    from types import SimpleNamespace
+
+    workflow = SimpleNamespace(invoke=lambda s: s)
 
 # API Router
 router = APIRouter()
@@ -33,43 +44,63 @@ class FollowUpPayload(BaseModel):
 
 # --- Helper Function for Building API Responses ---
 
-def _build_final_response(state: TravelState) -> Dict[str, Any]:
+def _build_final_response(state: TravelState | Dict[str, Any]) -> Dict[str, Any]:
     """
     Analyzes the state and builds the appropriate API response.
 
     - If required information is missing, it returns a 'followup_required' response.
     - If all required information is present, it returns a 'complete' response.
     """
-    missing_fields = [
-        field for field in REQUIRED_QUESTIONS
-        if not getattr(state, field, None)  # Safely check if the attribute is missing or empty
-    ]
+    # Support both pydantic TravelState objects and plain dicts returned by
+    # the workflow. This prevents attribute errors when the workflow returns
+    # a dict during testing or when optional components fall back to simple
+    # structures.
+    if isinstance(state, dict):
+        def _get(f):
+            return state.get(f)
+    else:
+        def _get(f):
+            return getattr(state, f, None)
+
+    missing_fields = [field for field in REQUIRED_QUESTIONS if not _get(field)]
 
     if missing_fields:
         # Generate questions for the fields that are still missing
         questions_to_ask = [REQUIRED_QUESTIONS[field] for field in missing_fields]
+        # When returning current_state, always normalize to a dict so the
+        # frontend can safely inspect it.
+        current_state = state.dict() if not isinstance(state, dict) else state
         return {
             "status": "followup_required",
             "missing_fields": missing_fields,
             "questions": questions_to_ask,
-            "current_state": state.dict(),
+            "current_state": current_state,
         }
     else:
         # All required info is present, return the final trip plan
+        # Normalize values whether coming from a dict or TravelState.
+        def _val(f, cast=str, default=None):
+            v = _get(f)
+            if v is None:
+                return default
+            return cast(v) if cast else v
+
+        current_state = state.dict() if not isinstance(state, dict) else state
+
         return {
             "status": "complete",
             "trip_plan": {
-                "destination": state.destination,
-                "start_date": str(state.start_date) if state.start_date else None,
-                "end_date": str(state.end_date) if state.end_date else None,
-                "no_of_traveler": state.no_of_traveler,
-                "type_of_trip": state.type_of_trip,
-                "season": state.season,
-                "budget": state.budget,
-                "preferences": state.user_preferences,
-                "locations_to_visit": state.locations_to_visit,
-                "activities": state.activities,
-                "summary": state.summary,
+                "destination": current_state.get("destination"),
+                "start_date": str(current_state.get("start_date")) if current_state.get("start_date") else None,
+                "end_date": str(current_state.get("end_date")) if current_state.get("end_date") else None,
+                "no_of_traveler": current_state.get("no_of_traveler"),
+                "type_of_trip": current_state.get("type_of_trip"),
+                "season": current_state.get("season"),
+                "budget": current_state.get("budget"),
+                "preferences": current_state.get("user_preferences"),
+                "locations_to_visit": current_state.get("locations_to_visit"),
+                "activities": current_state.get("activities"),
+                "summary": current_state.get("summary"),
             },
         }
 
@@ -77,15 +108,19 @@ def _build_final_response(state: TravelState) -> Dict[str, Any]:
 # --- API Endpoints ---
 
 @router.post("/process-query", response_model=Dict[str, Any])
-async def process_query(payload: UserQuerySchema = Body(...)) -> Dict[str, Any]:
+async def process_query(payload: UserQuerySchema = Body(...), current_user = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Processes the initial user query to start planning a trip. It runs the
     query through the workflow and determines if more information is needed.
     """
     try:
-        # Initialize the state with the user's raw query
-        initial_state = {"additional_info": payload.query}
+        # Initialize the state with the user's raw query. Accept both 'id'
+        # and '_id' keys from the current_user dict for robustness.
+        user_id = None
+        if isinstance(current_user, dict):
+            user_id = current_user.get("id") or current_user.get("_id")
 
+        initial_state = {"additional_info": payload.query, "user_id": user_id}
         # Run the workflow to extract information from the query
         result_state = workflow.invoke(initial_state)
 

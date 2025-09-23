@@ -1,7 +1,7 @@
 # python
 from typing import Dict, Tuple, List, Optional
 
-from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
 class FollowUpAgent:
@@ -19,7 +19,7 @@ class FollowUpAgent:
         self.mandatory_fields = mandatory_fields or ["destination", "start_date", "end_date", "no_of_traveler",
                                                      "type_of_trip"]
         self.llm_api_key = OPENAI_API_KEY
-        self.llm_model = LLM_MODEL
+        self.llm_model = OPENAI_MODEL
 
     def _is_missing(self, val) -> bool:
         return val in (None, "", [], 0)

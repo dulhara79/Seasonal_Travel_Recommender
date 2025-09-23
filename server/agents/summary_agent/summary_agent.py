@@ -3,14 +3,14 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
 
-from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.summary_schemas import SummaryAgentInputSchema, SummaryAgentOutputSchema
 
 # Load LLM
-llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0.3, max_tokens=800)
+llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0.3, max_tokens=800)
 
 
-def generate_summary(state: SummaryAgentInputSchema) -> SummaryAgentOutputSchema:
+def generate_summary(state: SummaryAgentInputSchema | dict) -> SummaryAgentOutputSchema:
     """
     Generates a refined, conversational summary of the trip
     using the collected information in SummaryAgentInputSchema.
@@ -18,55 +18,88 @@ def generate_summary(state: SummaryAgentInputSchema) -> SummaryAgentOutputSchema
 
     print(f"Generating summary for state: {state}")
 
+    # Normalize incoming state to work with either a pydantic object or a
+    # plain dict returned by lightweight/optional workflow implementations.
+    if isinstance(state, dict):
+        _dst = state.get("destination")
+        _start = state.get("start_date")
+        _end = state.get("end_date")
+        _num = state.get("no_of_traveler")
+        _budget = state.get("budget")
+        _prefs = state.get("user_preferences") or []
+        _type = state.get("type_of_trip")
+        _locations = state.get("locations_to_visit") or []
+        _activities = state.get("activities") or []
+        _packing = state.get("packing_list") or []
+        _additional = state.get("additional_info")
+        _messages = state.get("messages") or []
+    else:
+        _dst = state.destination
+        _start = state.start_date
+        _end = state.end_date
+        _num = state.no_of_traveler
+        _budget = state.budget
+        _prefs = state.user_preferences
+        _type = state.type_of_trip
+        _locations = state.locations_to_visit
+        _activities = state.activities
+        _packing = state.packing_list
+        _additional = state.additional_info
+        _messages = state.messages
+
     # --- Build raw summary parts ---
     response_parts = []
 
-    if state.destination:
-        response_parts.append(f"# ✈️ Trip Summary for {state.destination}\n")
+    if _dst:
+        response_parts.append(f"# ✈️ Trip Summary for {_dst}\n")
 
-    if state.start_date and state.end_date:
+    if _start and _end:
         try:
-            start_dt = datetime.datetime.strptime(state.start_date, "%Y-%m-%d").strftime("%B %d, %Y")
-            end_dt = datetime.datetime.strptime(state.end_date, "%Y-%m-%d").strftime("%B %d, %Y")
+            start_dt = datetime.datetime.strptime(_start, "%Y-%m-%d").strftime("%B %d, %Y")
+            end_dt = datetime.datetime.strptime(_end, "%Y-%m-%d").strftime("%B %d, %Y")
             response_parts.append(f"## 🗓️ Dates\n- From **{start_dt}** to **{end_dt}**\n")
         except ValueError:
-            response_parts.append(f"## 🗓️ Dates\n- {state.start_date} → {state.end_date} (format issue)\n")
+            response_parts.append(f"## 🗓️ Dates\n- {_start} → {_end} (format issue)\n")
 
-    if state.no_of_traveler:
-        traveler_text = "solo" if state.no_of_traveler == 1 else f"{state.no_of_traveler} travelers"
+    if _num:
+        traveler_text = "solo" if _num == 1 else f"{_num} travelers"
         response_parts.append(f"## 👥 Travelers\n- This trip is planned for **{traveler_text}**\n")
 
-    if state.budget:
-        response_parts.append(f"## 💰 Budget\n- Budget level: **{state.budget.capitalize()}**\n")
+    if _budget:
+        try:
+            budget_text = _budget.capitalize()
+        except Exception:
+            budget_text = str(_budget)
+        response_parts.append(f"## 💰 Budget\n- Budget level: **{budget_text}**\n")
 
-    if state.user_preferences:
-        prefs = ", ".join(state.user_preferences)
+    if _prefs:
+        prefs = ", ".join(_prefs)
         response_parts.append(f"## 🎯 Preferences\n- Your main interests: **{prefs}**\n")
 
-    if state.type_of_trip:
-        response_parts.append(f"## 🌍 Trip Type\n- You described this as a **{state.type_of_trip}** trip.\n")
+    if _type:
+        response_parts.append(f"## 🌍 Trip Type\n- You described this as a **{_type}** trip.\n")
 
-    if state.locations_to_visit:
+    if _locations:
         response_parts.append("## 🗺️ Locations to Visit")
-        for loc in state.locations_to_visit:
+        for loc in _locations:
             response_parts.append(f"- {loc}")
         response_parts.append("")
 
-    if state.activities:
+    if _activities:
         response_parts.append("## 🎡 Activities")
-        for act in state.activities:
+        for act in _activities:
             response_parts.append(f"- {act}")
         response_parts.append("")
 
-    if state.packing_list:
+    if _packing:
         response_parts.append("## 🎒 Suggested Packing List")
-        for item in state.packing_list:
+        for item in _packing:
             response_parts.append(f"- {item}")
         response_parts.append("")
 
-    if state.additional_info:
+    if _additional:
         response_parts.append("## ℹ️ Additional Info")
-        response_parts.append(f"{state.additional_info}\n")
+        response_parts.append(f"{_additional}\n")
 
     raw_summary = "\n".join(response_parts)
 
@@ -93,12 +126,12 @@ def generate_summary(state: SummaryAgentInputSchema) -> SummaryAgentOutputSchema
         return SummaryAgentOutputSchema(
             summary=final_summary,
             status="completed",
-            messages=state.messages + [{"role": "assistant", "content": final_summary}]
+            messages=_messages + [{"role": "assistant", "content": final_summary}]
         )
     except Exception as e:
         fallback_msg = f"⚠️ I encountered an error creating the polished summary: {e}. Here’s the raw summary instead:\n\n{raw_summary}"
         return SummaryAgentOutputSchema(
             summary=fallback_msg,
             status="error",
-            messages=state.messages + [{"role": "assistant", "content": fallback_msg}]
+            messages=_messages + [{"role": "assistant", "content": fallback_msg}]
         )

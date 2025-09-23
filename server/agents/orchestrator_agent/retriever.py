@@ -3,10 +3,10 @@ from langchain_openai import ChatOpenAI
 from regex import search
 
 from server.agents.orchestrator_agent.vector_store import get_vectorstore
-from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 
 # Initialize LLM
-llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0)
+llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0)
 
 # create retriever
 vectorstore = get_vectorstore()
