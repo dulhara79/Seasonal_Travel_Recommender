@@ -11,6 +11,37 @@ from server.schemas.userQuery_schema import UserQuerySchema
 from server.workflow.graph_builder import build_graph
 from server.schemas.global_schema import TravelState
 
+
+# === Input sanitization & logging helpers ===
+import re
+import time
+from pathlib import Path
+import json
+
+LOG_DIR = Path("server/logs/activity")
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+def sanitize_user_input(text: str, max_len: int = 800) -> str:
+    if not isinstance(text, str):
+        return ""
+    txt = text.strip()
+    txt = re.sub(r"[\x00-\x1F\x7F]+", " ", txt)  # remove control chars
+    if len(txt) > max_len:
+        txt = txt[:max_len-3] + "..."
+    return txt
+
+def log_activity_call(prompt: str, top_sources: list, model_name: str = "OpenAI"):
+    entry = {
+        "ts": int(time.time()),
+        "prompt_preview": prompt[:200],
+        "top_sources": top_sources[:5],
+        "model": model_name
+    }
+    fname = LOG_DIR / f"activity_call_{entry['ts']}.json"
+    with fname.open("w", encoding="utf-8") as f:
+        json.dump(entry, f, ensure_ascii=False, indent=2)
+
+
 router = APIRouter()
 workflow = build_graph()
 
@@ -67,14 +98,21 @@ workflow = build_graph()
 
 @router.post("/chat")
 def chat(user_query: UserQuerySchema):
+    # Sanitize user input
+    clean_query = sanitize_user_input(user_query.query)
+    
+    
     # Initialize TravelState with user input
     state = TravelState(
-        messages=[{"role": "user", "content": user_query.query}],
-        additional_info=user_query.query
+        messages=[{"role": "user", "content": clean_query}],
+        additional_info=clean_query
     )
 
     # Run the workflow
     result = workflow.invoke(state)
+
+    # Log activity call (if you want source info, pass it instead of [])
+    log_activity_call(clean_query, top_sources=[], model_name="OpenAI")
 
     # Extract summary and status reliably
     summary = None
