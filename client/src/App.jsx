@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 // import Conversation from './pages/Conversation'
 // import Summary from './pages/Summary'
 import TravelRecommendation from './components/TravelRecommender'
+import TravelAgentWithFollowup from './components/TravelAgentWithFollowup'
 
 function App() {
   // conversationMarkdown will hold markdown received from the summary agent
@@ -14,6 +15,7 @@ function App() {
     <BrowserRouter>
       <Routes>
             <Route path="/" element={<TravelRecommendation />} />
+            <Route path="/followup" element={<TravelAgentWithFollowup />} />
 {/*         <Route path="/" element={<Home />} /> */}
 {/*         <Route path="/conversation" element={<Conversation markdown={conversationMarkdown} onSummary={setConversationMarkdown} />} /> */}
 {/*         <Route path="/summary" element={<Summary markdown={conversationMarkdown} />} /> */}
