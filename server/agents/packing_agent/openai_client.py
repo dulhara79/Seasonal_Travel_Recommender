@@ -10,6 +10,7 @@ def call_chat_completion(messages, model=None, temperature=0.3, max_tokens=600):
     """
     client = OpenAI(api_key=OPENAI_API_KEY)
     model = OPENAI_MODEL
+
     resp = client.chat.completions.create(
         model=model,
         messages=messages,
