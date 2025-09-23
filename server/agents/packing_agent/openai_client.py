@@ -1,13 +1,15 @@
 import os, json
 from openai import OpenAI
 
+from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+
 def call_chat_completion(messages, model=None, temperature=0.3, max_tokens=600):
     """
     
     Thin wrapper around OpenAI Chat Completions for portability.
     """
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    model = LLM_MODEL
     resp = client.chat.completions.create(
         model=model,
         messages=messages,
