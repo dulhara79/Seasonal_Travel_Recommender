@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel
 
 class TravelState(BaseModel):
@@ -11,12 +11,15 @@ class TravelState(BaseModel):
     budget: Optional[str] = None
     user_preferences: List[str] = []
     type_of_trip: Optional[str] = None
-    additional_info: Optional[str] = None
+    additional_info: Optional[Any] = None
     status: Optional[str] = None
     messages: List[dict] = []
 
     # From Location Agent
     locations_to_visit: List[str] = []
+
+    # From Activity Agent
+    activities: Optional[List] = None
 
     # From Summary Agent
     summary: Optional[str] = None
