@@ -17,7 +17,6 @@ WEATHER_RULES = {
         ("Scarf/Gloves", "Wind chill protection"),
     ]
 }
-
 ACTIVITY_RULES = {
     "hiking": [
         ("Hiking shoes", "Grip on trails"),

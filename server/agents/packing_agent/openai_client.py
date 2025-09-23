@@ -3,6 +3,7 @@ from openai import OpenAI
 
 def call_chat_completion(messages, model=None, temperature=0.3, max_tokens=600):
     """
+    
     Thin wrapper around OpenAI Chat Completions for portability.
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

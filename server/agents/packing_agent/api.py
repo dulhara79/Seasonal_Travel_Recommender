@@ -5,6 +5,7 @@ from .packing_agent import generate_packing_list
 
 app = FastAPI(title="Packing Agent", version="1.0.0")
 
+
 class ActivityAgentInput(BaseModel):
     location: str
     season: str

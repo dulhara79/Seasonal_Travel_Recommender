@@ -7,6 +7,7 @@ from .prompt import SYSTEM_PROMPT, build_user_prompt
 from .openai_client import call_chat_completion
 from .rules import rule_based_pack, fairness_sort
 
+
 def sanitize(s: str, max_len: int = 300) -> str:
     s = bleach.clean(s or "", strip=True)
     return s[:max_len]
