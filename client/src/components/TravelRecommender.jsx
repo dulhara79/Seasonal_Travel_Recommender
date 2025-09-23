@@ -43,7 +43,7 @@ const TravelRecommender = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: input.trim() }),
+        body: JSON.stringify({ user_query: { query: input.trim() } }),
       });
 
       if (!response.ok) {

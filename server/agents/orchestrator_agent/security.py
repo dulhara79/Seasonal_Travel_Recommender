@@ -32,7 +32,7 @@ def sanitize_input(text: Optional[str]) -> str:
     #         detail="Input exceeds maximum word limit."
     #     )
 
-    print(f"Debug: Original input length: {len(text)} characters, {len(text.split())} words")
+    print(f"\nDebug: Original input length: {len(text)} characters, {len(text.split())} words")
 
     # Remove HTML/JS script tags
     text = re.sub(r"(?i)<\s*script.*?>.*?<\s*/\s*script\s*>", "", text)

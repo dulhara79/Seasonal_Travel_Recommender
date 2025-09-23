@@ -1,21 +1,32 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+# load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+
+# load .env located at server/.env (relative, robust across machines)
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))   # server/
+DOTENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=DOTENV_PATH)
 
 # Database
-DATABASE_URL = os.getenv('DATABASE_URL')
+MONGODB_URI = os.getenv('MONGODB_URI')
+MONGODB_DB = os.getenv('MONGODB_DB')
 
 # CORS
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS')
 
 # OpenAI
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
 
 # Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+# JWT
+JWT_SECRET = os.getenv('JWT_SECRET', 'f4buctOtskxFmHeYIU5ULMXMPujCK8JwBA6olGY02rJ9sekeIh0IFx0sUXOPSJQWiyrekfguyiUTYGFCYIGJHTU5467iyughjft7dygvjgftdr7utyiugvjgcydrytucyfg78tiyuhgfibdjlshiuocgmijrfngviywo8ytcmoilakjòhwgpisoòljdsmogyub')
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '60'))
 
 # Weather
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
