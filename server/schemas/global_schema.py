@@ -1,5 +1,22 @@
 from typing import List, Optional, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+class PackingItem(BaseModel):
+    name: str
+    reason: Optional[str] = None
+
+
+class PackingCategory(BaseModel):
+    name: str
+    items: List[PackingItem] = Field(default_factory=list)
+
+
+class PackingOutput(BaseModel):
+    summary: Optional[str] = None
+    duration_days: Optional[int] = None
+    categories: List[PackingCategory] = Field(default_factory=list)
+    notes: List[str] = Field(default_factory=list)
+
 
 class TravelState(BaseModel):
     # From Orchestrator
@@ -20,6 +37,9 @@ class TravelState(BaseModel):
 
     # From Activity Agent
     activities: Optional[List] = None
+
+    # From Packing Agent
+    packing: Optional[PackingOutput] = None
 
     # From Summary Agent
     summary: Optional[str] = None
