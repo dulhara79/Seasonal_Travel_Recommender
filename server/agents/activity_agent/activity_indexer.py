@@ -286,7 +286,7 @@ def suggest_activities(inp) -> dict:
     Returns a dict matching the JSON shape in the prompt above.
     """
 
-    print(f"DEBUG: suggest_activities called with inp={inp}")
+    print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
     if not os.path.isdir(INDEX_DIR):
         print("[activity_agent] Index not found; building now (this may take a few minutes)...")
@@ -397,6 +397,7 @@ def suggest_activities(inp) -> dict:
     try:
         data = json.loads(text)
         data["status"] = "complete"
+        print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE: {data}")
         return data
     except Exception:
         # fallback heuristic: create minimal day_plans
@@ -411,7 +412,7 @@ def suggest_activities(inp) -> dict:
                     {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": []},
                 ]
             })
-        print(f"DEBUG: ACTIVITY AGENT LLM RAW RESPONSE: {day_plans, text}")
+        print(f"\nDEBUG: (exception block) ACTIVITY AGENT LLM RAW RESPONSE: {day_plans, text}")
         return {
             "destination": destination,
             "overall_theme": f"Activities near {destination}",
