@@ -10,7 +10,7 @@ from json import JSONDecodeError
 
 from server.agents.followup_agent.followup_agent import create_followup_questions
 from server.agents.orchestrator_agent.retriever import retrieve_relevant_context
-from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.orchestrator_schemas import (
     OrchestratorAgent4OutpuSchema,
     OrchestratorAgent4InputSchema,
@@ -18,7 +18,7 @@ from server.schemas.orchestrator_schemas import (
 from server.agents.orchestrator_agent.security import sanitize_input
 
 # Initialize LLM and parser
-llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0)
+llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0)
 parser = PydanticOutputParser(pydantic_object=OrchestratorAgent4OutpuSchema)
 
 # Prompt template
