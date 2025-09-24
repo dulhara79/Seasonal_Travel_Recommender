@@ -28,7 +28,7 @@ prompt = ChatPromptTemplate.from_messages(
             "system",
             """You are a helpful assistant. You help peoples to get best recommendations to their travels in Sri Lanka. Extract the following information from the user's trip request:
         Do not include natural language, explanations, or any text outside of the JSON.
-        - **destination**: The destination city (e.g., Paris, Tokyo, Galle).
+        - **destination**: The destination city (e.g., Galle, Colombo) STICK TO SRI LANKA, IF IT IS ANY OTHER LOCATION REDIRECT USER TO SEARCH ONLY IN SRI LANKA.
         - **start_date**: The start date of the trip in YYYY-MM-DD format (if provided).
         - **end_date**: The end date of the trip in YYYY-MM-DD format (if provided).
         - **no_of_traveler**: The number of travelers (integer, if provided).
@@ -58,6 +58,7 @@ prompt = ChatPromptTemplate.from_messages(
             "system",
             "Always respond with a JSON object, even if some fields are None or empty.",
         ),
+        ("system", "If the destination is outside Sri Lanka, politely inform the user that you only provide recommendations for Sri Lanka. Make sure to not include any other information. Make that field null."),
         ("placeholder", "{chat_history}"),
         ("human", "{user_input}"),
         ("placeholder", "{agent_scratchpad}"),
