@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from server.api.route import router as api_router
 from server.api.auth import router as auth_router
+from server.api.conversations import router as conversations_router
 from server.utils.db import connect_to_mongo, close_mongo_connection
 import uvicorn
 
@@ -19,6 +20,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/auth")
 app.include_router(api_router, prefix="/api")
+app.include_router(conversations_router, prefix="/api/conversations")
 
 @app.on_event("startup")
 async def startup_event():
