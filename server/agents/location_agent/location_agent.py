@@ -262,6 +262,8 @@ Type of trip: {trip_type}
         return safe_parse_locations("", prev_response)
 
     parsed = safe_parse_locations(text_output, prev_response)
+
+    print(f"DEBUG: [LocationAgent] Parsed response: {parsed}")
     return parsed
 
 
