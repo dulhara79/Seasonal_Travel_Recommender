@@ -7,6 +7,7 @@ from server.schemas.global_schema import TravelState
 from server.schemas.userQuery_schema import UserQuerySchema
 from server.api.auth import get_current_user
 from server.utils.chat_history import create_conversation, append_message
+from server.utils.responsible_ai import enrich_trip_plan_response
 
 try:
     # Attempt to import and build the workflow graph. Optional deps like
@@ -88,7 +89,7 @@ def _build_final_response(state: TravelState | Dict[str, Any]) -> Dict[str, Any]
 
         current_state = state.dict() if not isinstance(state, dict) else state
 
-        return {
+        resp = {
             "status": "complete",
             "trip_plan": {
                 "destination": current_state.get("destination"),
@@ -100,10 +101,22 @@ def _build_final_response(state: TravelState | Dict[str, Any]) -> Dict[str, Any]
                 "budget": current_state.get("budget"),
                 "preferences": current_state.get("user_preferences"),
                 "locations_to_visit": current_state.get("locations_to_visit"),
+                "location_recommendations": current_state.get("location_recommendations"),
                 "activities": current_state.get("activities"),
+                "packing_list": current_state.get("packing_list"),
                 "summary": current_state.get("summary"),
             },
         }
+
+        try:
+            # Enrich and validate the trip_plan with Responsible AI metadata. This is
+            # best-effort: if enrichment fails we fall back to returning the original
+            # response but we log the error.
+            resp = enrich_trip_plan_response(resp)
+        except Exception as e:
+            print("Warning: responsible_ai enrichment failed:", type(e).__name__, str(e))
+
+        return resp
 
 
 # --- API Endpoints ---
@@ -127,6 +140,7 @@ async def process_query(payload: UserQuerySchema = Body(...), current_user = Dep
 
         # Persist the initial user query as a conversation (best-effort).
         # If saving fails we still return the response to the client.
+        created = None
         try:
             if user_id:
                 created = await create_conversation(user_id, None, None)

@@ -1,27 +1,30 @@
-import { useState } from 'react'
-import './App.css'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-// import Home from './pages/Home'
-// import Conversation from './pages/Conversation'
-// import Summary from './pages/Summary'
-import TravelRecommendation from './components/TravelRecommender'
-import TravelAgentWithFollowup from './components/TravelAgentWithFollowup'
+import React from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
+import Chat from './pages/Chat'
+import { useAuth } from './contexts/AuthContext'
 
-function App() {
-  // conversationMarkdown will hold markdown received from the summary agent
-//   const [conversationMarkdown, setConversationMarkdown] = useState('# Summary will appear here')
-
-  return (
-    <BrowserRouter>
-      <Routes>
-            <Route path="/" element={<TravelRecommendation />} />
-            <Route path="/followup" element={<TravelAgentWithFollowup />} />
-{/*         <Route path="/" element={<Home />} /> */}
-{/*         <Route path="/conversation" element={<Conversation markdown={conversationMarkdown} onSummary={setConversationMarkdown} />} /> */}
-{/*         <Route path="/summary" element={<Summary markdown={conversationMarkdown} />} /> */}
-      </Routes>
-    </BrowserRouter>
-  )
+function Protected({ children }) {
+	const { token } = useAuth()
+	if (!token) return <Navigate to="/login" replace />
+	return children
 }
 
-export default App
+export default function App() {
+	return (
+		<Routes>
+			<Route path="/login" element={<Login />} />
+			<Route path="/signup" element={<Signup />} />
+			<Route
+				path="/chat"
+				element={
+					<Protected>
+						<Chat />
+					</Protected>
+				}
+			/>
+			<Route path="/" element={<Navigate to="/chat" replace />} />
+		</Routes>
+	)
+}

@@ -65,24 +65,29 @@ def followup_node(state: TravelState) -> TravelState:
 
 def location_node(state: TravelState) -> TravelState:
     """Recommend locations based on extracted query."""
+    # Keep the full agent response for better downstream summarization/analysis
     response = run_location_agent(state)
-    locations = [loc["name"] for loc in response.get("recommended_locations", [])]
-    return TravelState(**{**state.dict(), "locations_to_visit": locations})
+    locations = [loc.get("name") for loc in response.get("recommended_locations", []) if isinstance(loc, dict) and loc.get("name")] if isinstance(response, dict) else []
+    return TravelState(**{**state.dict(), "locations_to_visit": locations, "location_recommendations": response})
 
 
 def activity_node(state: TravelState) -> TravelState:
     """Suggest activities for the selected locations."""
+    # Store both the human-friendly day plans and the raw agent output
     response = suggest_activities(state)
     day_plans = response.get("day_plans", [])
-    return TravelState(**{**state.dict(), "activities": day_plans})
+    return TravelState(**{**state.dict(), "activities": day_plans, "activity_recommendations": response})
 
 
 def packing_node(state: TravelState) -> TravelState:
     """Suggest packing list based on selected locations and activities."""
     # suggest_packing expects the state (refer to agent implementation)
     response = generate_packing_list(state)
-    packing_list = response.get("packing_list", [])
-    return TravelState(**{**state.dict(), "packing_list": packing_list})
+    print(f"\nDEBUG: Packing agent response: {response}")
+    # packing_list = response.get("packing_list", [])
+    # print(f"\nDEBUG: Extracted packing list: {packing_list}")
+    print(f"\nDEBUG: Full packing list data type: {response}")
+    return TravelState(**{**state.dict(), "packing_list": response})
 
 
 def summary_node(state: TravelState) -> TravelState:

@@ -59,3 +59,9 @@ ACTIVITY_FAISS_DIR = os.getenv('ACTIVITY_FAISS_DIR', "data/activity_faiss")
 ACTIVITY_SOURCES_JSON = os.getenv('ACTIVITY_SOURCES_JSON', "data/activity_sources.json")
 
 ORCHESTRATOR_CHROMA_DIR = os.getenv('ORCHESTRATOR_CHROMA_DIR', "data/orchestrator_chroma")
+
+# Geocoder (OpenStreetMap Nominatim) - optional
+# Set GEOCODER_ENABLE=true in .env to enable remote geocoding lookups
+GEOCODER_ENABLE = os.getenv('GEOCODER_ENABLE', 'false').lower() in ('1', 'true', 'yes')
+GEOCODER_USER_AGENT = os.getenv('GEOCODER_USER_AGENT', 'seasonal-travel-recommender/1.0 (contact: you@example.com)')
+GEOCODER_CACHE_PATH = os.getenv('GEOCODER_CACHE_PATH', os.path.join(BASE_DIR, 'data', 'geocode_cache.json'))
