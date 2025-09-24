@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from server.schemas.global_schema import TravelState
 from server.schemas.userQuery_schema import UserQuerySchema
 from server.api.auth import get_current_user
+from server.utils.chat_history import create_conversation, append_message
 
 try:
     # Attempt to import and build the workflow graph. Optional deps like
@@ -124,8 +125,42 @@ async def process_query(payload: UserQuerySchema = Body(...), current_user = Dep
         # Run the workflow to extract information from the query
         result_state = workflow.invoke(initial_state)
 
-        # Build and return the response based on the workflow's output
-        return _build_final_response(result_state)
+        # Persist the initial user query as a conversation (best-effort).
+        # If saving fails we still return the response to the client.
+        try:
+            if user_id:
+                created = await create_conversation(user_id, None, None)
+                if created and created.get("id"):
+                    conv_id = created.get("id")
+                    ok = await append_message(conv_id, "user", payload.query, {})
+                    if not ok:
+                        print(f"Warning: append_message returned False for conversation {conv_id}")
+                    else:
+                        print(f"Saved initial query to conversation {conv_id}")
+        except Exception as e:
+            # Log but don't break the API response
+            print("Error while saving conversation:", type(e).__name__, str(e))
+
+        # Build the response based on the workflow's output
+        final_response = _build_final_response(result_state)
+
+        # Persist assistant response as a message (best-effort). If saving
+        # fails we still return the response to the client.
+        try:
+            if user_id and created and created.get("id"):
+                # Convert final_response to a compact text representation for storage
+                # Keep it simple: JSON-like string or join the relevant fields
+                import json
+                assistant_text = json.dumps(final_response, default=str)
+                ok2 = await append_message(created.get("id"), "assistant", assistant_text, {})
+                if not ok2:
+                    print(f"Warning: failed to append assistant message to conversation {created.get('id')}")
+                else:
+                    print(f"Saved assistant response to conversation {created.get('id')}")
+        except Exception as e:
+            print("Error while saving assistant response:", type(e).__name__, str(e))
+
+        return final_response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
