@@ -1,0 +1,104 @@
+import React from "react";
+
+export default function LandingPage() {
+  return (
+    <div className="font-sans text-gray-800">
+      {/* Navbar */}
+      <header className="flex justify-between items-center p-6 bg-white shadow-sm sticky top-0 z-50">
+        <h1 className="text-2xl font-bold text-sky-600">Traveling</h1>
+        <nav className="hidden md:flex space-x-8">
+          <a href="#" className="hover:text-sky-600">Home</a>
+          <a href="#" className="hover:text-sky-600">Feature</a>
+          <a href="#" className="hover:text-sky-600">About</a>
+        </nav>
+        <button className="bg-sky-600 hover:bg-sky-700 text-white rounded-full px-6 py-2">Sign In</button>
+      </header>
+
+      {/* Hero Section */}
+      <section className="text-center py-20 bg-gradient-to-b from-sky-50 to-white">
+        <h2 className="text-4xl md:text-5xl font-extrabold mb-6">
+          Start your journey <br /> by one click, explore <br /> beautiful world!
+        </h2>
+        <div className="flex justify-center gap-4 mb-10">
+          <img src="/appstore.png" alt="App Store" className="h-12" />
+          <img src="/playstore.png" alt="Play Store" className="h-12" />
+        </div>
+        <img src="/hero.png" alt="Hero" className="mx-auto rounded-2xl shadow-lg" />
+      </section>
+
+      {/* Popular Destinations */}
+      <section className="py-16 px-6 md:px-20">
+        <h3 className="text-3xl font-bold text-center mb-10">Popular Destinations</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {["Bali", "Raja Ampat", "Borobudur", "Komodo Island"].map((place, idx) => (
+            <div key={idx} className="bg-white rounded-xl shadow-md overflow-hidden">
+              <img src={`/dest-${idx + 1}.jpg`} alt={place} className="h-40 w-full object-cover" />
+              <div className="p-4">
+                <h4 className="text-lg font-semibold">{place}</h4>
+                <p className="text-sm text-gray-500">Explore the beauty of {place}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Why Choose Us */}
+      <section className="py-16 px-6 md:px-20 bg-sky-50">
+        <h3 className="text-3xl font-bold text-center mb-10">Why Choose Us</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <div className="p-6 bg-white rounded-xl shadow">
+            <h4 className="text-xl font-semibold mb-2">Flight Ticket</h4>
+            <p className="text-gray-500">Easy booking with affordable prices</p>
+          </div>
+          <div className="p-6 bg-white rounded-xl shadow">
+            <h4 className="text-xl font-semibold mb-2">Accomodation</h4>
+            <p className="text-gray-500">Best stays for your journey</p>
+          </div>
+          <div className="p-6 bg-white rounded-xl shadow">
+            <h4 className="text-xl font-semibold mb-2">Package Tour</h4>
+            <p className="text-gray-500">Complete packages with guides</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Plan Your Vacation */}
+      <section className="py-16 px-6 md:px-20">
+        <h3 className="text-3xl font-bold text-center mb-10">Plan Your Vacation!</h3>
+        <div className="grid md:grid-cols-2 gap-10">
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h4 className="font-semibold text-lg">Trip to Bali</h4>
+            <p className="text-gray-500">Start from $500</p>
+          </div>
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h4 className="font-semibold text-lg">Trip to Raja Ampat</h4>
+            <p className="text-gray-500">Start from $750</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Newsletter */}
+      <section className="bg-sky-600 py-16 text-center text-white">
+        <h3 className="text-3xl font-bold mb-4">The Beauty of Indonesia</h3>
+        <p className="mb-6">Discover amazing places and plan your dream trip today!</p>
+        <div className="flex justify-center gap-4 max-w-lg mx-auto">
+          <input
+            type="email"
+            placeholder="Enter your email"
+            className="px-4 py-2 rounded-full border border-gray-300 focus:outline-none text-gray-800 w-full"
+          />
+          <button className="bg-white text-sky-600 rounded-full px-6">Subscribe</button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-300 text-center py-6">
+        <p>© 2025 Traveling.com. All Rights Reserved.</p>
+        <div className="flex justify-center gap-4 mt-4">
+          <a href="#">Facebook</a>
+          <a href="#">Twitter</a>
+          <a href="#">Instagram</a>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visit Sri Lanka</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;600;800&display=swap" rel="stylesheet">
+  <style>
+    /* --- Your original Visit Sri Lanka CSS --- */
+    * {margin: 0;padding: 0;box-sizing: border-box;font-family: 'Montserrat', sans-serif;}
+    body {background-color: #000000;color: white;line-height: 1.6;}
+    header {position: absolute;top: 0;width: 100%;display: flex;justify-content: space-between;align-items: center;padding: 20px 60px;z-index: 10;}
+    header .logo {font-size: 1.2rem;font-weight: bold;display: flex;align-items: center;}
+    header nav ul {display: flex;list-style: none;}
+    header nav ul li {margin-left: 30px;}
+    header nav ul li a {text-decoration: none;color: white;font-weight: 600;transition: 0.3s;}
+    header nav ul li a:hover {color: #fbc531;}
+    .hero {position: relative;height: 100vh;background: url("images/photo-1546209189-247948bf5dfc.avif") no-repeat center center/cover;display: flex;align-items: center;justify-content: space-between;padding: 0 60px;}
+    .hero::before {content: '';position: absolute;top: 0;left: 0;right: 0;bottom: 0;background: linear-gradient(rgba(0,0,0,0.3) 0%,rgba(0,0,0,0.4) 50%,rgba(0,0,0,0.7) 80%,rgba(17,17,17,0.95) 95%,#111111 100%);z-index: 1;}
+    .hero-content {position: relative;z-index: 2;display: flex;width: 100%;align-items: center;justify-content: space-between;}
+    .hero-left {flex: 1;}
+    .hero h1 {font-size: 6rem;font-weight: 800;line-height: 0.9;margin-bottom: 20px;}
+    .hero p {font-size: 16px;max-width: 400px;font-weight: 300;margin-bottom: 40px;}
+    .hero-features {display: flex;flex-direction: column;gap: 25px;}
+    .feature {display: flex;align-items: flex-start;gap: 15px;}
+    .feature-icon {width: 40px;height: 40px;border: 2px solid #fbc531;border-radius: 50%;display: flex;align-items: center;justify-content: center;flex-shrink: 0;font-size: 18px;}
+    .feature-content h3 {font-size: 14px;font-weight: 600;margin-bottom: 5px;color: white;}
+    .feature-content p {font-size: 12px;color: #ccc;line-height: 1.4;}
+    .hero-right {display: flex;flex-direction: column;align-items: flex-end;gap: 20px;}
+    .hero-numbers {text-align: right;}
+    .number {font-size: 3rem;font-weight: 300;color: #666;margin-bottom: -10px;}
+    .info {display: flex;justify-content: space-around;text-align: center;padding: 50px 20px;background: #030303;}
+    .info div {max-width: 250px;}
+    .info div h3 {margin-bottom: 10px;color: #fbc531;}
+    .carousel {padding: 80px 60px;text-align: center;background: #030303;}
+    .section-subtitle {font-size: 12px;color: #999;text-transform: uppercase;letter-spacing: 2px;margin-bottom: 10px;}
+    .carousel h2 {font-size: 2.5rem;margin-bottom: 60px;font-weight: 300;text-transform: lowercase;}
+    .cards {display: flex;justify-content: center;gap: 30px;flex-wrap: wrap;max-width: 1200px;margin: 0 auto;}
+    .card {width: 320px;border-radius: 15px;overflow: hidden;background: #222;box-shadow: 0 10px 30px rgba(0,0,0,0.3);transition: transform 0.3s, box-shadow 0.3s;}
+    .card img {width: 100%;height: 220px;object-fit: cover;}
+    .card:hover {transform: translateY(-10px);box-shadow: 0 20px 40px rgba(0,0,0,0.4);}
+    .card-content {padding: 25px;text-align: left;}
+    .card h3 {font-size: 1.4rem;font-weight: 600;margin-bottom: 8px;text-transform: lowercase;}
+    .card p {font-size: 0.85rem;color: #999;text-transform: uppercase;letter-spacing: 1px;}
+    .carousel-dots {display: flex;justify-content: center;gap: 15px;margin-top: 50px;}
+    .dot {width: 10px;height: 10px;border-radius: 50%;background: #555;cursor: pointer;transition: background 0.3s;}
+    .dot.active {background: #fbc531;}
+
+    /* --- About Us Section Styling (light theme) --- */
+    .about-section {background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 50%, #90caf9 100%);color: #333;padding: 80px 20px;}
+    .about-container {max-width: 1200px;margin: 0 auto;}
+    .hero-about {text-align: center;padding: 60px 20px;background: white;border-radius: 30px;margin-bottom: 50px;box-shadow: 0 15px 40px rgba(0,0,0,0.1);}
+    .hero-about h1 {font-size: 48px;font-weight: bold;color: #1a1a1a;margin-bottom: 20px;}
+    .hero-about p {font-size: 18px;color: #666;max-width: 600px;margin: 0 auto;line-height: 1.7;}
+  </style>
+</head>
+<body>
+  <!-- Original Header -->
+  <header>
+    <div class="logo">Travling</div>
+    <nav>
+      <ul>
+        <li><a href="index.html" style="text-decoration: none; color: #ffffff; font-weight: 500; transition: color 0.3s ease;" onmouseover="this.style.color='#0277bd'" onmouseout="this.style.color='#666'">HOME</a></li>
+        <li><a href="#">ABOUT</a></li>
+        <li><a href="#">TOURISM</a></li>
+        <li><a href="#">VISA</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-left">
+        <h1>VISIT<br>SRI LANKA</h1>
+        <p>Welcome to the Sri Lankan National Tourism Board - Your gateway to paradise</p>
+        <div class="hero-features">
+          <div class="feature"><div class="feature-icon">🏛️</div><div class="feature-content"><h3>Sri Lanka formerly known as Ceylon</h3><p>Discover the historical sections and rich culture</p></div></div>
+          <div class="feature"><div class="feature-icon">💎</div><div class="feature-content"><h3>An island country in South Asia</h3><p>Explore the beautiful Island paradise</p></div></div>
+          <div class="feature"><div class="feature-icon">🌺</div><div class="feature-content"><h3>Highlands of the Bay of Bengal</h3><p>Experience the southern coast of the peninsula</p></div></div>
+        </div>
+      </div>
+      <div class="hero-right"><div class="hero-numbers"><div class="number">04</div><div class="number">05</div><div class="number">06</div></div></div>
+    </div>
+  </section>
+
+  <!-- Info Section -->
+  <section class="info">
+    <div><h3>🇱🇰</h3><p>Sri Lanka, formerly known as Ceylon, is an island country in South Asia.</p></div>
+    <div><h3>🌏</h3><p>Located in the Indian Ocean, southeast of the Bay of Bengal.</p></div>
+    <div><h3>📍</h3><p>Famous for its rich culture, wildlife, and stunning landscapes.</p></div>
+  </section>
+
+  <!-- Carousel -->
+  <section class="carousel">
+    <p class="section-subtitle">Find the best spots for you</p>
+    <h2>popular place in srilanka</h2>
+    <div class="cards">
+      <div class="card"><img src="images/image.png" alt="Temple of the Tooth"><div class="card-content"><h3>temple of the tooth</h3><p>KANDY DISTRICT</p></div></div>
+      <div class="card"><img src="images/Yala National Park A.png" alt="Yala National Park"><div class="card-content"><h3>yala national park</h3><p>HAMBANTOTA DISTRICT</p></div></div>
+      <div class="card"><img src="https://plus.unsplash.com/premium_photo-1730145749791-28fc538d7203?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8c2lnaXJpeWF8ZW58MHx8MHx8fDA%3D" alt="Sigiriya"><div class="card-content"><h3>sigiriya</h3><p>MATALE DISTRICT</p></div></div>
+    </div>
+    <div class="carousel-dots"><div class="dot active"></div><div class="dot"></div></div>
+  </section>
+
+  <!-- About Us Section -->
+  <section class="about-us">
+  <h2 class="section-title">About Us</h2>
+  <p class="about-intro">
+    At <strong>Travling</strong>, we believe that travel is more than just visiting new places — 
+    it’s about creating unforgettable memories, connecting with cultures, and discovering yourself.  
+  </p>
+
+  <!-- Company Overview -->
+  <div class="about-overview">
+    <h3>Who We Are</h3>
+    <p>
+      Founded with a passion for exploration, Travling has become one of the most trusted 
+      travel service providers. From budget-friendly packages to luxury getaways, 
+      we tailor experiences that fit every traveler’s dream.
+    </p>
+  </div>
+
+  <!-- Mission & Vision -->
+  <div class="about-mission-vision">
+    <div>
+      <h3>Our Mission</h3>
+      <p>
+        To make travel accessible, affordable, and unforgettable — while ensuring 
+        responsible tourism and positive local impact.
+      </p>
+    </div>
+    <div>
+      <h3>Our Vision</h3>
+      <p>
+        To be the leading travel platform where every journey inspires a lifetime of stories.  
+      </p>
+    </div>
+  </div>
+
+  <!-- Core Values -->
+  <div class="about-values">
+    <h3>Our Core Values</h3>
+    <ul>
+      <li>🌍 Customer First – Your satisfaction is our priority.</li>
+      <li>🤝 Integrity – Honest and transparent in everything we do.</li>
+      <li>🌱 Sustainability – Protecting the planet while exploring it.</li>
+      <li>🚀 Innovation – Using technology to improve travel experiences.</li>
+      <li>⭐ Excellence – Delivering only the best, every time.</li>
+    </ul>
+  </div>
+
+  <!-- Team Section -->
+  <div class="about-team">
+    <h3>Meet Our Team</h3>
+    <div class="team-grid">
+      <div class="team-card">
+        <img src="team1.jpg" alt="Founder">
+        <h4>Alex Johnson</h4>
+        <p>Founder & CEO</p>
+      </div>
+      <div class="team-card">
+        <img src="team2.jpg" alt="Travel Expert">
+        <h4>Sophia Lee</h4>
+        <p>Travel Expert</p>
+      </div>
+      <div class="team-card">
+        <img src="team3.jpg" alt="Support Lead">
+        <h4>David Kim</h4>
+        <p>Customer Support Lead</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="about-timeline">
+    <h3>Our Journey</h3>
+    <ul>
+      <li><strong>2015:</strong> Travling was founded with a mission to make travel easier.</li>
+      <li><strong>2017:</strong> Expanded to offer 100+ destinations worldwide.</li>
+      <li><strong>2020:</strong> Introduced eco-friendly travel packages.</li>
+      <li><strong>2023:</strong> Served over 1 million happy travelers globally.</li>
+    </ul>
+  </div>
+
+  <!-- Testimonials -->
+  <div class="about-testimonials">
+    <h3>What Our Travelers Say</h3>
+    <div class="testimonials-grid">
+      <blockquote>
+        "Travling made our honeymoon absolutely magical. Everything was perfectly organized!"
+        <cite>- Emily & Mark</cite>
+      </blockquote>
+      <blockquote>
+        "Affordable, stress-free, and memorable. Highly recommend their services!"
+        <cite>- Ramesh, Sri Lanka</cite>
+      </blockquote>
+    </div>
+  </div>
+
+  <!-- Call to Action -->
+  <div class="about-cta">
+    <h3>Ready to Start Your Journey?</h3>
+    <p>Let Travling plan your dream trip today. Adventure is just one click away!</p>
+    <a href="contactus.html" class="cta-btn">Contact Us</a>
+  </div>
+</section>
+
+<!-- CSS -->
+<style>
+.about-us {
+  padding: 80px 60px;
+  background: #030303;
+  color: white;
+  line-height: 1.6;
+  font-family: 'Montserrat', sans-serif;
+}
+.about-us .section-title {
+  text-align: center;
+  font-size: 2.5rem;
+  margin-bottom: 60px;
+  font-weight: 300;
+  text-transform: lowercase;
+  color: white;
+}
+.about-intro {
+  text-align: center;
+  max-width: 700px;
+  margin: 0 auto 40px;
+  font-size: 16px;
+  color: #ccc;
+  font-weight: 300;
+}
+.about-overview {
+  margin: 50px 0;
+  text-align: center;
+}
+.about-overview h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.about-overview p {
+  color: #999;
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+.about-mission-vision {
+  display: flex;
+  gap: 50px;
+  margin: 50px 0;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.about-mission-vision div {
+  background: #222;
+  padding: 30px;
+  border-radius: 15px;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+.about-mission-vision h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.about-mission-vision p {
+  color: #ccc;
+  line-height: 1.6;
+}
+.about-values {
+  margin: 50px 0;
+  text-align: center;
+}
+.about-values h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 30px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.about-values ul {
+  list-style: none;
+  padding: 0;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.about-values li {
+  margin: 20px 0;
+  padding: 15px;
+  background: #222;
+  border-radius: 10px;
+  color: #ccc;
+  font-weight: 300;
+}
+.about-team .team-grid {
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+  margin: 40px 0;
+  flex-wrap: wrap;
+}
+.about-team h3 {
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 30px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.team-card {
+  background: #222;
+  padding: 30px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  transition: transform 0.3s;
+  max-width: 250px;
+}
+.team-card:hover {
+  transform: translateY(-10px);
+}
+.team-card img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-bottom: 15px;
+  object-fit: cover;
+}
+.team-card h4 {
+  color: white;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+.team-card p {
+  color: #999;
+  font-size: 14px;
+}
+.about-timeline {
+  margin: 50px 0;
+  text-align: center;
+}
+.about-timeline h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 30px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.about-timeline ul {
+  list-style: none;
+  padding: 0;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.about-timeline li {
+  margin: 20px 0;
+  padding: 15px 15px 15px 30px;
+  position: relative;
+  background: #222;
+  border-radius: 10px;
+  color: #ccc;
+}
+.about-timeline li::before {
+  content: "•";
+  position: absolute;
+  left: 15px;
+  color: #fbc531;
+  font-size: 18px;
+}
+.about-testimonials {
+  margin: 50px 0;
+  text-align: center;
+}
+.about-testimonials h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 30px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.testimonials-grid {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+blockquote {
+  background: #222;
+  padding: 25px;
+  border-left: 5px solid #fbc531;
+  border-radius: 15px;
+  font-style: italic;
+  max-width: 400px;
+  color: #ccc;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+blockquote cite {
+  display: block;
+  margin-top: 15px;
+  font-weight: bold;
+  color: #fbc531;
+  font-style: normal;
+}
+.about-cta {
+  text-align: center;
+  margin-top: 60px;
+}
+.about-cta h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #fbc531;
+  text-transform: lowercase;
+}
+.about-cta p {
+  color: #ccc;
+  margin-bottom: 25px;
+}
+.about-cta .cta-btn {
+  display: inline-block;
+  margin-top: 15px;
+  padding: 15px 30px;
+  background: #fbc531;
+  color: #000;
+  text-decoration: none;
+  border-radius: 25px;
+  font-weight: bold;
+  transition: all 0.3s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.about-cta .cta-btn:hover {
+  background: #e6b82a;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(251, 197, 49, 0.3);
+}
+</style>
+
