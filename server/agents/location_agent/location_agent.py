@@ -91,12 +91,12 @@ Example output:
 if __name__ == "__main__":
     # Example trip input
     state = {
-        "destination": "jaffna, Sri Lanka",
+        "destination": "kandy",
         "start_date": "2025-12-10",
         "end_date": "2025-12-17",
         "no_of_traveler": 2,
         "budget": "medium",
-        "user_preferences": ["hiking", "cultural sites", "nature photography"],
+        "user_preferences": ["hiking"],
         "type_of_trip": "adventure"
     }
 
