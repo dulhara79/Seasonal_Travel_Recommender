@@ -1,7 +1,12 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+# load_dotenv(dotenv_path="C:/Users/dulha/GitHub/Seasonal_Travel_Recommender/server/.env")
+
+# load .env located at server/.env (relative, robust across machines)
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))   # server/
+DOTENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path=DOTENV_PATH)
 
 # Database
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -12,6 +17,10 @@ ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS')
 # OpenAI
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 LLM_MODEL = os.getenv('LLM_MODEL', 'gpt-4o-mini')
+
+# Gemini
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
 # Weather
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
