@@ -210,7 +210,7 @@ def generate_packing_list(
             llm_result = None
 
     if not llm_result:
-        # Deterministic fallback
+ 
         rb = rule_based_pack(payload["season"], payload["suggested_activities"])
         rb["duration_days"] = payload["duration_days"]
         rb["categories"] = fairness_sort(rb.get("categories", []))
