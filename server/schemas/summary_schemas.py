@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Optional, List, Any, Union
 
 from pydantic import BaseModel
+
+from server.schemas.global_schema import PackingOutput
+
 
 class SummaryAgentInputSchema(BaseModel):
     destination: str = None
@@ -12,9 +15,10 @@ class SummaryAgentInputSchema(BaseModel):
     user_preferences: list[str] = []
     type_of_trip: str = None
     locations_to_visit: list[str] = []
-    activities: list[str] = []
-    packing_list: list[str] = []
-    additional_info: Optional[str] = None
+    activities: Optional[List] = []
+    # Accept either the legacy list[str] packing list or the structured PackingOutput
+    packing_list: Union[List[str], PackingOutput] = []
+    additional_info: Optional[Any] = None
     status: Optional[str] = None
     messages: list[dict] = []
 

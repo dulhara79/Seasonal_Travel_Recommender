@@ -8,9 +8,9 @@ from langchain.chains import LLMChain
 import json
 from json import JSONDecodeError
 
-
+from server.agents.followup_agent.followup_agent import create_followup_questions
 from server.agents.orchestrator_agent.retriever import retrieve_relevant_context
-from server.utils.config import OPENAI_API_KEY, LLM_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.orchestrator_schemas import (
     OrchestratorAgent4OutpuSchema,
     OrchestratorAgent4InputSchema,
@@ -18,7 +18,7 @@ from server.schemas.orchestrator_schemas import (
 from server.agents.orchestrator_agent.security import sanitize_input
 
 # Initialize LLM and parser
-llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=LLM_MODEL, temperature=0)
+llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0)
 parser = PydanticOutputParser(pydantic_object=OrchestratorAgent4OutpuSchema)
 
 # Prompt template
@@ -28,7 +28,7 @@ prompt = ChatPromptTemplate.from_messages(
             "system",
             """You are a helpful assistant. You help peoples to get best recommendations to their travels in Sri Lanka. Extract the following information from the user's trip request:
         Do not include natural language, explanations, or any text outside of the JSON.
-        - **destination**: The destination city (e.g., Paris, Tokyo, Galle).
+        - **destination**: The destination city (e.g., Galle, Colombo) STICK TO SRI LANKA, IF IT IS ANY OTHER LOCATION REDIRECT USER TO SEARCH ONLY IN SRI LANKA.
         - **start_date**: The start date of the trip in YYYY-MM-DD format (if provided).
         - **end_date**: The end date of the trip in YYYY-MM-DD format (if provided).
         - **no_of_traveler**: The number of travelers (integer, if provided).
@@ -58,6 +58,7 @@ prompt = ChatPromptTemplate.from_messages(
             "system",
             "Always respond with a JSON object, even if some fields are None or empty.",
         ),
+        ("system", "If the destination is outside Sri Lanka, politely inform the user that you only provide recommendations for Sri Lanka. Make sure to not include any other information. Make that field null."),
         ("placeholder", "{chat_history}"),
         ("human", "{user_input}"),
         ("placeholder", "{agent_scratchpad}"),
@@ -77,16 +78,16 @@ MANDATORY_FIELDS = [
     "no_of_traveler",
     "type_of_trip",
 ]
-FOLLOWUP_QUESTIONS = {
-    "destination": "🌍 Where would you like to travel?",
-    "season": "🍂 Which season are you planning this trip for?",
-    "start_date": "📅 What is your trip start date? (YYYY-MM-DD)",
-    "end_date": "📅 What is your trip end date? (YYYY-MM-DD)",
-    "no_of_traveler": "👥 How many people are traveling?",
-    "budget": "💰 What is your budget (low, medium, high)?",
-    "type_of_trip": "🎯 What type of trip is this (leisure, adventure, business, etc.)?",
-}
-
+# FOLLOWUP_QUESTIONS = {
+#     "destination": "🌍 Where would you like to travel?",
+#     "season": "🍂 Which season are you planning this trip for?",
+#     "start_date": "📅 What is your trip start date? (YYYY-MM-DD)",
+#     "end_date": "📅 What is your trip end date? (YYYY-MM-DD)",
+#     "no_of_traveler": "👥 How many people are traveling?",
+#     "budget": "💰 What is your budget (low, medium, high)?",
+#     "type_of_trip": "🎯 What type of trip is this (leisure, adventure, business, etc.)?",
+# }
+#
 
 def safe_parse(output_parser, text: str, prev_response=None):
     try:
@@ -149,71 +150,6 @@ def run_llm_agent(
     return response, chat_history
 
 
-# def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses=None):
-#     if user_responses is None:
-#         user_responses = []
-
-#     chat_history = []
-
-#     # Step 1: Let LLM fill as much as possible
-#     response, chat_history = run_llm_agent(state, chat_history)
-#     response = OrchestratorAgent4OutpuSchema(**response.dict())
-
-#     # Initialize json_response BEFORE the loop
-#     try:
-#         json_response = json.loads(response.json())
-#     except (json.JSONDecodeError, AttributeError):
-#         json_response = {
-#             "location": response.location,
-#             "start_date": response.start_date,
-#             "end_date": response.end_date,
-#             "no_of_traveler": response.no_of_traveler,
-#             "type_of_trip": response.type_of_trip,
-#             "status": response.status,
-#             "preferences": [],
-#             "additional_info": None,
-#             "messages": [],
-#         }
-
-#     # Step 2: Only ask if mandatory fields missing
-#     while True:
-#         missing_fields = [f for f in MANDATORY_FIELDS if getattr(response, f) in (None, "", [], 0)]
-#         print("DEBUG missing fields:", missing_fields)
-
-#         if not missing_fields:
-#             response.status = "complete"
-#             json_response["status"] = response.status
-#             break
-
-#         missing_field = missing_fields[0]
-#         question = FOLLOWUP_QUESTIONS[missing_field]
-
-#         if user_responses:
-#             answer = user_responses.pop(0)
-#         else:
-#             answer = input(question + " ")
-
-#         if missing_field == "no_of_traveler":
-#             response.no_of_traveler = int(answer)
-#         elif missing_field in ["user_preferences", "preferences"]:
-#             response.user_preferences = [x.strip() for x in answer.split(",")]
-#         else:
-#             setattr(response, missing_field, answer)
-
-#         # Update json_response with latest values
-#         json_response.update({
-#             "location": response.location,
-#             "start_date": response.start_date,
-#             "end_date": response.end_date,
-#             "no_of_traveler": response.no_of_traveler,
-#             "type_of_trip": response.type_of_trip,
-#             "status": response.status,
-#             "user_preferences": response.user_preferences,
-#         })
-
-#     return json_response
-
-
 def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses=None):
     if user_responses is None:
         user_responses = []
@@ -253,19 +189,51 @@ def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses
             break
 
         missing_field = missing_fields[0]
-        question = FOLLOWUP_QUESTIONS[missing_field]
+        questions = create_followup_questions(json_response, missing_fields)
+
+        # Helper to apply answer to response
+        def apply_answer(field: str, ans: str):
+            if field == "no_of_traveler":
+                try:
+                    response.no_of_traveler = int(ans)
+                except Exception:
+                    # keep existing if conversion fails
+                    pass
+            elif field in ["user_preferences", "preferences"]:
+                response.user_preferences = [x.strip() for x in ans.split(",") if x.strip()]
+            else:
+                setattr(response, field, ans)
 
         if user_responses:
-            answer = user_responses.pop(0)
+            ans = user_responses.pop(0)
+            apply_answer(missing_field, ans)
         else:
-            answer = input(question + " ")
+            # Get the specific question for the missing field (avoid the broken break logic)
+            question = questions.get(missing_field) or f"Please provide {missing_field}:"
+            try:
+                ans = input(question + " ")
+            except EOFError:
+                # Non-interactive environment: stop asking and return current state
+                response.status = "awaiting_user_input"
+                json_response["status"] = response.status
+                json_response.setdefault("messages", []).append(
+                    f"Awaiting answers for: {', '.join(missing_fields)}"
+                )
+                # Keep current filled values and bail out
+                json_response.update(
+                    {
+                        "destination": response.destination,
+                        "start_date": response.start_date,
+                        "end_date": response.end_date,
+                        "no_of_traveler": response.no_of_traveler,
+                        "type_of_trip": response.type_of_trip,
+                        "status": response.status,
+                        "user_preferences": getattr(response, "user_preferences", []),
+                    }
+                )
+                return json_response
 
-        if missing_field == "no_of_traveler":
-            response.no_of_traveler = int(answer)
-        elif missing_field in ["user_preferences", "preferences"]:
-            response.user_preferences = [x.strip() for x in answer.split(",")]
-        else:
-            setattr(response, missing_field, answer)
+            apply_answer(missing_field, ans)
 
         # Update json_response with latest values
         json_response.update(
@@ -276,7 +244,7 @@ def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses
                 "no_of_traveler": response.no_of_traveler,
                 "type_of_trip": response.type_of_trip,
                 "status": response.status,
-                "user_preferences": response.user_preferences,
+                "user_preferences": getattr(response, "user_preferences", []),
             }
         )
 
