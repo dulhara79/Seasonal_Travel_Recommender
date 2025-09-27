@@ -1,6 +1,5 @@
 from typing import List, Dict, Any, Tuple
 
-# Deterministic rules to ensure you can demo without LLM (or to post-process LLM output)
 
 WEATHER_RULES = {
     "summer": [
