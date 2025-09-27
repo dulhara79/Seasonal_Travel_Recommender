@@ -6,7 +6,7 @@ inp = {
     "start_date": "2025-12-10",
     "end_date": "2025-12-11",
     "user_preferences": ["hiking", "culture"],
-    "budget": "medium",
+    "budget": "low",
     "type_of_trip": "adventure"
 }
 
