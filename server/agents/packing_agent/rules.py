@@ -90,7 +90,6 @@ def rule_based_pack(season: str, activities: List[str]) -> Dict[str, Any]:
     # Documents & Safety
     push_items(cats[3], DOC_SAFETY)
 
-    # Optional (cheap comfort items first)
     push_items(cats[4], [("Travel pillow", "Comfort on buses")])
 
     return {
