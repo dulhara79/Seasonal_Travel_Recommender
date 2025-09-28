@@ -1,0 +1,180 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f0f8ff;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Header */
+header {
+  background-color: #ffffff;
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #0077b6;
+}
+
+nav ul {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+}
+
+nav a {
+  text-decoration: none;
+  color: #0077b6;
+  font-weight: bold;
+}
+
+.signup {
+  background-color: orange;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  margin-left: 20px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+/* Hero Section */
+.hero {
+  text-align: center;
+  padding: 60px 20px;
+  background-color: #e0f7fa;
+}
+
+.hero h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.hero p {
+  font-size: 1.1rem;
+  margin-bottom: 30px;
+}
+
+.hero-images img {
+  width: 150px;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 50%;
+  margin: 10px;
+}
+
+/* Destinations */
+.destinations {
+  padding: 40px 20px;
+  background-color: #fff;
+  text-align: center;
+}
+
+.cards {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.card {
+  width: 200px;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.card img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.card h3 {
+  padding: 10px;
+  font-size: 1.1rem;
+}
+
+/* Features */
+.features {
+  background-color: #fff3e0;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.feature-list {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.feature {
+  font-size: 1.2rem;
+}
+
+/* Planner */
+.planner {
+  background-color: #e3f2fd;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.planner ul {
+  list-style: none;
+  margin-bottom: 20px;
+}
+
+.planner li {
+  font-size: 1.1rem;
+  margin: 10px 0;
+}
+
+.planner img {
+  width: 80%;
+  max-width: 600px;
+  border-radius: 10px;
+}
+
+/* Footer */
+footer {
+  background-color: #0077b6;
+  color: white;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+footer form {
+  margin-bottom: 20px;
+}
+
+footer input {
+  padding: 10px;
+  width: 250px;
+  border: none;
+  border-radius: 5px;
+}
+
+footer button {
+  padding: 10px 20px;
+  background-color: orange;
+  border: none;
+  color: white;
+  border-radius: 5px;
+  margin-left: 10px;
+  cursor: pointer;
+}

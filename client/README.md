@@ -7,6 +7,15 @@ How the frontend uses agents
 - The Conversation page sends a POST to `/agents/summary_agent/summarize` with body { text: string } and expects JSON with `markdown` or `summary` containing markdown text.
 - If the network request fails, the Conversation page will treat the typed/pasted input as markdown and display it locally.
 
+# Client (Frontend)
+
+This frontend is a small React app (Vite) that provides pages for Conversation and Summary.
+
+How the frontend uses agents
+- The gateway mounts agents under `/agents/<agent_name>` when the server is running.
+- The Conversation page sends a POST to `/agents/summary_agent/summarize` with body { text: string } and expects JSON with `markdown` or `summary` containing markdown text.
+- If the network request fails, the Conversation page will treat the typed/pasted input as markdown and display it locally.
+
 Files added
 - `src/pages/Conversation.jsx`: conversation UI and summary request logic.
 - `src/pages/Summary.jsx`: renders markdown provided by the app state.
@@ -24,6 +33,25 @@ cd client; npm install
 ```powershell
 npm run dev
 ```
+
+How to run with the backend
+---------------------------
+
+1. Start the backend API (FastAPI) from the repository root. By default it listens on `http://localhost:8000`.
+
+2. Optionally configure the frontend to point at the backend by creating `client/.env` with:
+
+```
+VITE_API_BASE=http://localhost:8000
+```
+
+3. Start the frontend dev server:
+
+```powershell
+cd client; npm run dev
+```
+
+Sign in using the `/login` page to obtain an access token which will be attached to subsequent requests.
 
 Notes
 - The gateway's `routes.py` exposes convenience endpoints (e.g., `/chat`) which proxy to the `convo_orchestrator`. The frontend can also call those directly.
