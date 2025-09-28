@@ -305,8 +305,15 @@ def suggest_activities(inp: dict) -> dict:
 
     return {"status": "success", "data": {}}  # Placeholder return value
    
-
-
+    llm = _llm()
+    dates = _date_range(
+        _get("start_date", None),
+        _get("end_date", None)
+    )
+    if not dates:
+        return {"status": "error", "message": "Invalid date range."}
+    if len(dates) > 14:
+        return {"status": "error", "message": "Date range too long; max 14 days."}
 
     def _get(key, default=None):
         try:
