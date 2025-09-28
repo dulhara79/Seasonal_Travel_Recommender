@@ -346,9 +346,6 @@ def suggest_activities(inp: dict) -> dict:
     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
 
 
-
-
-
     # --- LLM call: use proper LangChain message objects (HumanMessage) ---
     from langchain.schema import HumanMessage
 
