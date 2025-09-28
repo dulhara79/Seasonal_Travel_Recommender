@@ -38,9 +38,9 @@ import sys
 import traceback
 
 inp = {
-    "destination": "Kandy, Sri Lanka",
+    "destination": "Wanniya, Sri Lanka",
     "start_date": "2025-12-10",
-    "end_date": "2025-12-11",
+    "end_date": "2025-12-15",
     "user_preferences": ["hiking", "culture"],
     "budget": "low",
     "type_of_trip": "adventure"
