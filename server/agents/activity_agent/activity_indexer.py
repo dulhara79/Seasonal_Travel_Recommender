@@ -291,17 +291,7 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     return sources
 
 def suggest_activities(inp: dict) -> dict:
-    """
-    High-level entry point your orchestrator can call.
-    `inp` should be a dict with keys (similar to ActivityAgentInput):
-      - destination (string)
-      - start_date (YYYY-MM-DD) optional
-      - end_date (YYYY-MM-DD) optional
-      - user_preferences (list of strings) optional
-      - budget, type_of_trip, no_of_traveler, season, suggest_locations (list) etc.
 
-    Returns a dict matching the JSON shape in the prompt above.
-    """
 
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
