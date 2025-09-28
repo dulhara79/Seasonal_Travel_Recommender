@@ -8,7 +8,14 @@ import uvicorn
 
 app = FastAPI(title="Seasonal Travel Recommender API")
 
-origins = ["http://localhost:5173"]
+origins = [
+    "http://localhost:5173",  # React frontend
+    "http://localhost:3000",  # Alternative React port
+    "http://127.0.0.1:5173",  # Alternative localhost
+    "http://127.0.0.1:3000",  # Alternative localhost
+    "file://",  # For local HTML files
+    "*"  # Allow all origins for development (remove in production)
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,4 +46,4 @@ def health_check():
     return {"status": "ok"}
 
 if __name__ == "__main__":
-    uvicorn.run("server.api.main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("server.api.main:app", host="0.0.0.0", port=8002, reload=True)
