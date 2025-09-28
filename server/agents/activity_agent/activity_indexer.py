@@ -291,80 +291,51 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     return sources
 
 def suggest_activities(inp: dict) -> dict:
-    """
-    High-level entry point your orchestrator can call.
-    `inp` should be a dict with keys (similar to ActivityAgentInput):
-      - destination (string)
-      - start_date (YYYY-MM-DD) optional
-      - end_date (YYYY-MM-DD) optional
-      - user_preferences (list of strings) optional
-      - budget, type_of_trip, no_of_traveler, season, suggest_locations (list) etc.
+    """Suggest activities based on user input and retrieved context.
 
-    Returns a dict matching the JSON shape in the prompt above.
+    Args:
+        inp (dict): User input containing trip details and preferences.
+    Returns:
+        dict: Structured activity plan with day-wise suggestions.
     """
-
+    vs = _load_vectorstore()
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
-    if not os.path.isdir(INDEX_DIR):
-        print("[activity_agent] Index not found; building now (this may take a few minutes)...")
-        build_or_refresh_index()
+    # Further processing and activity suggestion logic goes here
 
-    vs = _load_vectorstore()
+    return {"status": "success", "data": {}}  # Placeholder return value
+   
     llm = _llm()
+    dates = _date_range(
+        _get("start_date", None),
+        _get("end_date", None)
+    )
+    if not dates:
+        return {"status": "error", "message": "Invalid date range."}
+    if len(dates) > 14:
+        return {"status": "error", "message": "Date range too long; max 14 days."}
 
-    destination = inp.destination  or ""
-    suggest_locations = inp.locations_to_visit or []
+    def _get(key, default=None):
+        try:
+            if isinstance(inp, dict):
+                return inp.get(key, default)
+            # pydantic model or object with attributes
+            return getattr(inp, key, default)
+        except Exception:
+            return default
+
+    # Use safe accessors
+    destination = _get("destination", "") or ""
+    suggest_locations = _get("suggest_locations", []) or []
+    # allow older name variants
+    user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
     locs = _expand_locations(destination, suggest_locations)
+
+    # Build retriever using llm object (some code expects llm param)
     retriever = _retriever_for_location(vs, locs, llm)
 
-    # Build a compact query
-    prefs = ", ".join(inp.user_preferences or [])
-    blocks = [
-        f"Activities in/near {destination}",
-        f"Best things to do in {destination} for {inp.type_of_trip, inp.no_of_traveler}",
-        f"Budget: {inp.budget,'any'}; Season: {inp.season,any}; Preferences: {prefs or 'any'}"
-    ]
-    if suggest_locations:
-        blocks.append("Also consider: " + ", ".join(suggest_locations))
-    query = " | ".join(blocks)
 
-    docs = retriever(query)
 
-    # Format dates
-    try:
-        start = datetime.strptime(inp.start_date, "%Y-%m-%d") if inp.start_date else datetime.today()
-        end = datetime.strptime(inp.end_date, "%Y-%m-%d") if inp.end_date else start
-    except Exception:
-        start = datetime.today()
-        end = start
-    dates = _date_range(start, end)
-
-    context = _format_context(docs)
-
-    # Convert inp to a JSON-serializable structure before dumping
-    trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
-    prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
-
-    # print("[activity_agent] Calling LLM with prompt (truncated)...")
-    # # call LLM
-    # response = llm.generate([{"role": "user", "content": prompt_text}])
-    # # response format may differ by langchain version - try to extract text safely
-    # text = ""
-    # try:
-    #     # new-style .generations
-    #     gens = response.generations
-    #     if isinstance(gens, list) and gens:
-    #         # each item in gens is a list of Generation objects
-    #         first = gens[0]
-    #         if isinstance(first, list):
-    #             text = first[0].text
-    #         else:
-    #             text = str(first[0])
-    # except Exception:
-    #     try:
-    #         text = response.llm_output.get("content", "") or str(response)
-    #     except Exception:
-    #         text = str(response)
 
 
 
@@ -438,8 +409,8 @@ def suggest_activities(inp: dict) -> dict:
             "status": "fallback"
         }
 
-# # CLI entry: build index if script run directly
-# if __name__ == "__main__":
-#     print("Building / refreshing FAISS index for activity retrieval...")
-#     build_or_refresh_index()
-#     print("Done.")
+# CLI entry: build index if script run directly
+if __name__ == "__main__":
+    print("Building / refreshing FAISS index for activity retrieval...")
+    build_or_refresh_index()
+    print("Done.")
