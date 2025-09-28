@@ -346,10 +346,7 @@ def suggest_activities(inp: dict) -> dict:
     # prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
 
 
-        # --- start replacement block ---
-    if not os.path.isdir(INDEX_DIR):
-        print("[activity_agent] Index not found; building now (this may take a few minutes)...")
-        build_or_refresh_index()
+   
 
     vs = _load_vectorstore()
     llm = _llm()
