@@ -13,6 +13,7 @@ Usage:
 
 import os
 import json
+import re
 from datetime import datetime, timedelta
 from typing import List, Optional
 from dotenv import load_dotenv
@@ -39,19 +40,6 @@ try:
     from langchain_community.vectorstores import FAISS
 except Exception:
     from langchain.vectorstores import FAISS
-
-# # Embeddings & LLM
-# try:
-#     from langchain_openai import OpenAIEmbeddings
-# except Exception:
-#     # fallback import path
-#     from langchain_openai import OpenAIEmbeddings
-
-# try:
-#     # from langchain_community.chat_models import ChatOpenAI
-#     from langchain_openai import ChatOpenAI
-# except Exception:
-#     from langchain.chat_models import ChatOpenAI
 
 # MultiQuery retriever (improves recall by paraphrasing queries)
 try:
@@ -140,7 +128,7 @@ def build_or_refresh_index(sources: Optional[List[str]] = None) -> str:
         meta = c.metadata or {}
         text_low = c.page_content.lower()
         loc_tags = []
-        for loc in ("kandy", "ella", "sigiriya", "galle", "colombo", "mirissa", "trincomalee"):
+        for loc in ("kandy", "ella", "sigiriya", "galle", "colombo", "mirissa", "trincomanee"):
             if loc in text_low:
                 loc_tags.append(loc)
         if loc_tags:
@@ -291,6 +279,36 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     return sources
 
 
+# === NEW helper: compute confidence heuristic for a title ===
+def _compute_confidence_for_title(title: str, docs: List, k: int = 5) -> float:
+    """
+    Simple heuristic: count how many of the top-k docs mention tokens from the title,
+    then return (count / k). If no docs, return 0.0.
+    Title tokens filtered to length > 3 to ignore small words.
+    """
+    if not title or not docs:
+        return 0.0
+    # prepare tokens from title
+    cleaned = re.sub(r"[^\w\s]", " ", title.lower())
+    tokens = [t for t in cleaned.split() if len(t) > 3]
+    if not tokens:
+        # if no good tokens, try using the full title phrase match
+        tokens = [title.lower()]
+
+    check_k = min(k, len(docs))
+    if check_k <= 0:
+        return 0.0
+
+    count = 0
+    # check top-k docs (preserve original order)
+    for d in docs[:check_k]:
+        content = (d.page_content or "").lower()
+        # match if any token found in doc text or full title phrase present
+        if any(tok in content for tok in tokens) or title.lower() in content:
+            count += 1
+    return float(count) / float(check_k)
+
+
 def suggest_activities(inp: dict) -> dict:
     """
     High-level entry point your orchestrator can call.
@@ -409,10 +427,34 @@ def suggest_activities(inp: dict) -> dict:
             day_plans.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "suggestions": [
-                    {"time_of_day": "morning", "title": f"Explore around {destination or 'the area'}", "why": "Nice light and cooler temps.", "source_hints": top_sources},
-                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid the heat.", "source_hints": top_sources},
-                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and local vibes.", "source_hints": top_sources},
-                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": top_sources},
+                    {
+                        "time_of_day": "morning",
+                        "title": f"Explore around {destination or 'the area'}",
+                        "why": "Nice light and cooler temps.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "noon",
+                        "title": "Local lunch & shorter indoor stop",
+                        "why": "Avoid the heat.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "evening",
+                        "title": "Sunset viewpoint or market walk",
+                        "why": "Golden hour and local vibes.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "night",
+                        "title": "Dinner / cultural show",
+                        "why": "Relax and enjoy local cuisine/culture.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
                 ]
             })
         return {
@@ -432,6 +474,28 @@ def suggest_activities(inp: dict) -> dict:
         # add top_sources list into result if not present
         if "top_sources" not in data:
             data["top_sources"] = top_sources
+
+        # Compute and attach confidence per suggestion
+        try:
+            # Determine k for heuristic: use up to 5 docs
+            heuristic_k = min(5, max(1, len(docs)))
+            for day in data.get("day_plans", []):
+                suggestions = day.get("suggestions", [])
+                for s in suggestions:
+                    title = s.get("title", "") or ""
+                    # simple heuristic: fraction of top-k docs that mention title tokens
+                    heuristic = _compute_confidence_for_title(title, docs, k=heuristic_k)
+                    # For LLM-produced items, ensure a conservative minimum of 0.8
+                    confidence = max(heuristic, 0.8)
+                    # clamp between 0 and 1
+                    confidence = max(0.0, min(1.0, float(confidence)))
+                    s["confidence"] = confidence
+                    # ensure source_hints exists
+                    if "source_hints" not in s:
+                        s["source_hints"] = top_sources
+        except Exception as ci_e:
+            print(f"[activity_agent] Confidence assignment failed: {ci_e}")
+
         print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
         return data
     except Exception as parse_exc:
@@ -444,10 +508,34 @@ def suggest_activities(inp: dict) -> dict:
             day_plans.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "suggestions": [
-                    {"time_of_day": "morning", "title": f"Explore around {destination or 'the area'}", "why": "Nice light and cooler temps.", "source_hints": top_sources},
-                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid the heat.", "source_hints": top_sources},
-                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and local vibes.", "source_hints": top_sources},
-                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": top_sources},
+                    {
+                        "time_of_day": "morning",
+                        "title": f"Explore around {destination or 'the area'}",
+                        "why": "Nice light and cooler temps.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "noon",
+                        "title": "Local lunch & shorter indoor stop",
+                        "why": "Avoid the heat.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "evening",
+                        "title": "Sunset viewpoint or market walk",
+                        "why": "Golden hour and local vibes.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
+                    {
+                        "time_of_day": "night",
+                        "title": "Dinner / cultural show",
+                        "why": "Relax and enjoy local cuisine/culture.",
+                        "source_hints": top_sources,
+                        "confidence": 0.3
+                    },
                 ]
             })
 
@@ -461,13 +549,8 @@ def suggest_activities(inp: dict) -> dict:
         }
 
 
-
-
-
-
-
-# CLI entry: build index if script run directly
-if __name__ == "__main__":
-    print("Building / refreshing FAISS index for activity retrieval...")
-    build_or_refresh_index()
-    print("Done.")
+# # CLI entry: build index if script run directly
+# if __name__ == "__main__":
+#     print("Building / refreshing FAISS index for activity retrieval...")
+#     build_or_refresh_index()
+#     print("Done.")
