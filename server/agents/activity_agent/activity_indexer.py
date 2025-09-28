@@ -290,49 +290,6 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
             break
     return sources
 
-def suggest_activities(inp: dict) -> dict:
-    """Suggest activities based on user input and retrieved context.
-
-    Args:
-        inp (dict): User input containing trip details and preferences.
-    Returns:
-        dict: Structured activity plan with day-wise suggestions.
-    """
-    vs = _load_vectorstore()
-    print(f"\nDEBUG: suggest_activities called with inp={inp}")
-
-    # Further processing and activity suggestion logic goes here
-
-    return {"status": "success", "data": {}}  # Placeholder return value
-   
-    llm = _llm()
-    dates = _date_range(
-        _get("start_date", None),
-        _get("end_date", None)
-    )
-    if not dates:
-        return {"status": "error", "message": "Invalid date range."}
-    if len(dates) > 14:
-        return {"status": "error", "message": "Date range too long; max 14 days."}
-
-    def _get(key, default=None):
-        try:
-            if isinstance(inp, dict):
-                return inp.get(key, default)
-            # pydantic model or object with attributes
-            return getattr(inp, key, default)
-        except Exception:
-            return default
-
-    # Use safe accessors
-    destination = _get("destination", "") or ""
-    suggest_locations = _get("suggest_locations", []) or []
-    # allow older name variants
-    user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
-    locs = _expand_locations(destination, suggest_locations)
-
-    # Build retriever using llm object (some code expects llm param)
-    retriever = _retriever_for_location(vs, locs, llm)
 
 
 
