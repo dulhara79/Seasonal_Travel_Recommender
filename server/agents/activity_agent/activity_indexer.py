@@ -290,124 +290,181 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
             break
     return sources
 
-def suggest_activities(inp: dict) -> dict:
-    """Suggest activities based on user input and retrieved context.
 
-    Args:
-        inp (dict): User input containing trip details and preferences.
-    Returns:
-        dict: Structured activity plan with day-wise suggestions.
+def suggest_activities(inp: dict) -> dict:
     """
-    vs = _load_vectorstore()
+    High-level entry point your orchestrator can call.
+    Accepts either a dict or a pydantic-like object.
+    Returns a dict matching the JSON shape expected by the orchestrator.
+    """
+
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
-    # Further processing and activity suggestion logic goes here
+    # Ensure index + vectorstore available
+    if not os.path.isdir(INDEX_DIR):
+        print("[activity_agent] Index not found; building now (this may take a few minutes)...")
+        build_or_refresh_index()
 
-    return {"status": "success", "data": {}}  # Placeholder return value
-   
+    vs = _load_vectorstore()
     llm = _llm()
-    dates = _date_range(
-        _get("start_date", None),
-        _get("end_date", None)
-    )
-    if not dates:
-        return {"status": "error", "message": "Invalid date range."}
-    if len(dates) > 14:
-        return {"status": "error", "message": "Date range too long; max 14 days."}
 
+    # Accept either a dict or a pydantic model-like object.
     def _get(key, default=None):
         try:
             if isinstance(inp, dict):
                 return inp.get(key, default)
-            # pydantic model or object with attributes
             return getattr(inp, key, default)
         except Exception:
             return default
 
-    # Use safe accessors
-    destination = _get("destination", "") or ""
+    # Safe accessors
+    destination = (_get("destination", "") or "").strip()
     suggest_locations = _get("suggest_locations", []) or []
-    # allow older name variants
     user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
-    locs = _expand_locations(destination, suggest_locations)
+    prefs = ", ".join(user_prefs)
 
-    # Build retriever using llm object (some code expects llm param)
+    # Build retriever context
+    locs = _expand_locations(destination, suggest_locations)
     retriever = _retriever_for_location(vs, locs, llm)
 
+    # Build a compact query (same logic you had originally)
+    blocks = [
+        f"Activities in/near {destination}" if destination else "Activities",
+        f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
+        f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
+    ]
+    if suggest_locations:
+        blocks.append("Also consider: " + ", ".join(suggest_locations))
+    query = " | ".join(blocks)
 
+    # Retrieve docs (chunks)
+    try:
+        docs = retriever(query)
+    except Exception as e:
+        print(f"[activity_agent] Retriever failed: {e}")
+        docs = []
 
+    # Dates parsing (ensure dates always defined for fallback)
+    try:
+        start = datetime.strptime(_get("start_date"), "%Y-%m-%d") if _get("start_date") else datetime.today()
+        end = datetime.strptime(_get("end_date"), "%Y-%m-%d") if _get("end_date") else start
+    except Exception:
+        start = datetime.today()
+        end = start
+    dates = _date_range(start, end)
 
+    # Format context for LLM and extract provenance/top sources
+    context = _format_context(docs)
+    top_sources = _extract_top_sources(docs, k=3)
 
+    # Build prompt text (serialize input safely)
+    try:
+        trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
+    except Exception:
+        # fallback to simple dict -> json
+        trip_json = json.dumps(inp if isinstance(inp, dict) else str(inp), indent=2, ensure_ascii=False)
 
-    # --- LLM call: use proper LangChain message objects (HumanMessage) ---
+    prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
+    # Optionally append a short provenance hint for the LLM
+    if top_sources:
+        prompt_text += "\n\nTop sources used (for provenance):\n" + "\n".join(top_sources)
+
+    print(f"[activity_agent] Calling LLM with prompt (truncated)...")
+    # LLM call (attempt multiple variants for compatibility)
     from langchain.schema import HumanMessage
 
-    print("[activity_agent] Calling LLM with prompt (truncated)...")
     text = ""
-
-    # Primary attempt: use generate with a nested list of HumanMessage objects
     try:
         response = llm.generate([[HumanMessage(content=prompt_text)]])
         gens = getattr(response, "generations", None)
         if isinstance(gens, list) and gens:
             first = gens[0]
-            # gens[0] is usually a list of Generation objects
             if isinstance(first, list) and first and hasattr(first[0], "text"):
                 text = first[0].text
             else:
                 text = str(first[0]) if first else str(response)
         else:
-            # fallback: try older .llm_output or string form
             text = getattr(response, "llm_output", {}).get("content", "") or str(response)
     except Exception as e:
-        # If generate fails for this version, try calling the model directly
+        # fallbacks
         try:
-            # Many Chat models support __call__ or .predict
-            text = llm.predict(prompt_text)  # best-effort; may raise if not supported
+            text = llm.predict(prompt_text)
         except Exception:
             try:
-                # final fallback: try calling llm as a callable with a HumanMessage
                 res = llm([HumanMessage(content=prompt_text)])
-                # res could be a string or a ChatResult-like object
                 if isinstance(res, str):
                     text = res
                 else:
-                    # attempt to extract typical attributes
                     text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
             except Exception as e2:
-                # If all attempts fail, surface a clear message for debugging
-                text = f"LLM call failed: {e} | fallback error: {e2}"
+                text = ""
+                print(f"[activity_agent] LLM calls failed: {e} | fallback: {e2}")
 
-
-
-
-    # Attempt to parse JSON
-    try:
-        data = json.loads(text)
-        data["status"] = "complete"
-        print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE: {data}")
-        return data
-    except Exception:
-        # fallback heuristic: create minimal day_plans
+    # Defensive: if empty or whitespace, skip json.loads and go fallback
+    if not isinstance(text, str) or not text.strip():
+        print("[activity_agent] LLM returned empty response; using fallback suggestions.")
+        # build fallback day_plans using dates (guaranteed defined above)
         day_plans = []
         for d in dates:
             day_plans.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "suggestions": [
-                    {"time_of_day": "morning", "title": f"Explore around {destination}", "why": "Nice light and cooler temps.", "source_hints": []},
-                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid heat.", "source_hints": []},
-                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and vibes.", "source_hints": []},
-                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": []},
+                    {"time_of_day": "morning", "title": f"Explore around {destination or 'the area'}", "why": "Nice light and cooler temps.", "source_hints": top_sources},
+                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid the heat.", "source_hints": top_sources},
+                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and local vibes.", "source_hints": top_sources},
+                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": top_sources},
                 ]
             })
-        print(f"\nDEBUG: (exception block) ACTIVITY AGENT LLM RAW RESPONSE: {day_plans, text}")
         return {
             "destination": destination,
-            "overall_theme": f"Activities near {destination}",
+            "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
+            "day_plans": day_plans,
+            "notes": "LLM returned empty; provided fallback suggestions.",
+            "status": "fallback",
+            "top_sources": top_sources
+        }
+
+    # Try parse JSON from LLM response
+    try:
+        data = json.loads(text)
+        # Attach status and provenance
+        data["status"] = "complete"
+        # add top_sources list into result if not present
+        if "top_sources" not in data:
+            data["top_sources"] = top_sources
+        print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
+        return data
+    except Exception as parse_exc:
+        print(f"[activity_agent] Could not parse LLM output as JSON: {parse_exc}")
+        print(f"[activity_agent] Raw LLM text (truncated): {text[:600]}")
+
+        # fallback heuristic (use dates guaranteed to be set)
+        day_plans = []
+        for d in dates:
+            day_plans.append({
+                "date": d.strftime("%Y-%m-%d"),
+                "suggestions": [
+                    {"time_of_day": "morning", "title": f"Explore around {destination or 'the area'}", "why": "Nice light and cooler temps.", "source_hints": top_sources},
+                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid the heat.", "source_hints": top_sources},
+                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and local vibes.", "source_hints": top_sources},
+                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": top_sources},
+                ]
+            })
+
+        return {
+            "destination": destination,
+            "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
             "day_plans": day_plans,
             "notes": "LLM returned non-JSON; provided fallback suggestions.",
-            "status": "fallback"
+            "status": "fallback",
+            "top_sources": top_sources
         }
+
+
+
+
+
+
 
 # CLI entry: build index if script run directly
 if __name__ == "__main__":
