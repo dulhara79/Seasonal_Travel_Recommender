@@ -16,6 +16,6 @@ def call_chat_completion(messages, model=None, temperature=0.3, max_tokens=600):
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
-        response_format={"type": "text"}  # we’ll parse JSON ourselves
+        response_format={"type": "text"}  
     )
     return resp.choices[0].message.content
