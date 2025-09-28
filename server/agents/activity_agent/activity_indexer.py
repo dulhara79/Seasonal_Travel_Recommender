@@ -270,6 +270,23 @@ def _format_context(docs, max_chars: int = 2400) -> str:
     return "\n".join(out)
 
 
+# === NEW helper: extract top-k sources for provenance ===
+def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
+    """
+    Return the top-k distinct source URLs encountered in docs (preserve order).
+    """
+    sources = []
+    for d in docs:
+        meta = d.metadata or {}
+        src = meta.get("source") or meta.get("url") or ""
+        if src:
+            # keep uniqueness, preserve first-seen order
+            if src not in sources:
+                sources.append(src)
+        if len(sources) >= k:
+            break
+    return sources
+
 def suggest_activities(inp: dict) -> dict:
     """
     High-level entry point your orchestrator can call.
