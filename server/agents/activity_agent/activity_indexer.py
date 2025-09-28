@@ -14,12 +14,16 @@ Usage:
 import os
 import json
 import re
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from dotenv import load_dotenv
 from fastapi.encoders import jsonable_encoder
 
 from server.schemas.global_schema import TravelState
+
+# setup logger
+logger = logging.getLogger(__name__)
 
 # load .env from the project root
 load_dotenv()
@@ -420,7 +424,7 @@ def suggest_activities(inp: dict) -> dict:
 
     # Defensive: if empty or whitespace, skip json.loads and go fallback
     if not isinstance(text, str) or not text.strip():
-        print("[activity_agent] LLM returned empty response; using fallback suggestions.")
+        logger.error("[activity_agent] LLM returned empty response; using fallback suggestions. Prompt (truncated): %s", prompt_text[:600])
         # build fallback day_plans using dates (guaranteed defined above)
         day_plans = []
         for d in dates:
@@ -431,28 +435,28 @@ def suggest_activities(inp: dict) -> dict:
                         "time_of_day": "morning",
                         "title": f"Explore around {destination or 'the area'}",
                         "why": "Nice light and cooler temps.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "noon",
                         "title": "Local lunch & shorter indoor stop",
                         "why": "Avoid the heat.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "evening",
                         "title": "Sunset viewpoint or market walk",
                         "why": "Golden hour and local vibes.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "night",
                         "title": "Dinner / cultural show",
                         "why": "Relax and enjoy local cuisine/culture.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                 ]
@@ -499,6 +503,8 @@ def suggest_activities(inp: dict) -> dict:
         print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
         return data
     except Exception as parse_exc:
+        logger.error("[activity_agent] Could not parse LLM output as JSON: %s", parse_exc)
+        logger.error("[activity_agent] Raw LLM text (truncated): %s", (text or "")[:2000])
         print(f"[activity_agent] Could not parse LLM output as JSON: {parse_exc}")
         print(f"[activity_agent] Raw LLM text (truncated): {text[:600]}")
 
@@ -512,28 +518,28 @@ def suggest_activities(inp: dict) -> dict:
                         "time_of_day": "morning",
                         "title": f"Explore around {destination or 'the area'}",
                         "why": "Nice light and cooler temps.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "noon",
                         "title": "Local lunch & shorter indoor stop",
                         "why": "Avoid the heat.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "evening",
                         "title": "Sunset viewpoint or market walk",
                         "why": "Golden hour and local vibes.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                     {
                         "time_of_day": "night",
                         "title": "Dinner / cultural show",
                         "why": "Relax and enjoy local cuisine/culture.",
-                        "source_hints": top_sources,
+                        "source_hints": [],
                         "confidence": 0.3
                     },
                 ]
