@@ -128,7 +128,7 @@ def build_or_refresh_index(sources: Optional[List[str]] = None) -> str:
         meta = c.metadata or {}
         text_low = c.page_content.lower()
         loc_tags = []
-        for loc in ("kandy", "ella", "sigiriya", "galle", "colombo", "mirissa", "trincomanee"):
+        for loc in ("kandy", "ella", "sigiriya", "galle", "colombo", "mirissa", "trincomalee"):
             if loc in text_low:
                 loc_tags.append(loc)
         if loc_tags:
