@@ -374,7 +374,6 @@ def suggest_activities(inp: dict) -> dict:
 
     # Build retriever using llm object (some code expects llm param)
     retriever = _retriever_for_location(vs, locs, llm)
-    # --- end replacement block ---
 
 
 
