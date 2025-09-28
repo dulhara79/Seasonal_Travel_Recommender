@@ -354,8 +354,6 @@ def suggest_activities(inp: dict) -> dict:
     vs = _load_vectorstore()
     llm = _llm()
 
-    # Accept either a dict or a pydantic model-like object.
-    # Use .get when available; otherwise fallback to attribute access.
     def _get(key, default=None):
         try:
             if isinstance(inp, dict):
