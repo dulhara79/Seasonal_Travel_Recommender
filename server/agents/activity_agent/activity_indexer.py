@@ -291,13 +291,19 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     return sources
 
 def suggest_activities(inp: dict) -> dict:
+    """Suggest activities based on user input and retrieved context.
 
-
+    Args:
+        inp (dict): User input containing trip details and preferences.
+    Returns:
+        dict: Structured activity plan with day-wise suggestions.
+    """
+    vs = _load_vectorstore()
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
-    
+    # Further processing and activity suggestion logic goes here
 
-
+    return {"status": "success", "data": {}}  # Placeholder return value
    
 
 
