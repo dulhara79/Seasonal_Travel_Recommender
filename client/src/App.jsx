@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Chat from './pages/Chat'
+import LandingPage from './components/LandingPage'
 import { useAuth } from './contexts/AuthContext'
 
 function Protected({ children }) {
@@ -14,6 +15,7 @@ function Protected({ children }) {
 export default function App() {
 	return (
 		<Routes>
+			<Route path="/" element={<LandingPage />} />
 			<Route path="/login" element={<Login />} />
 			<Route path="/signup" element={<Signup />} />
 			<Route
@@ -24,7 +26,6 @@ export default function App() {
 					</Protected>
 				}
 			/>
-			<Route path="/" element={<Navigate to="/chat" replace />} />
 		</Routes>
 	)
 }
