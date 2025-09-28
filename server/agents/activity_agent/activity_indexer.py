@@ -345,19 +345,7 @@ def suggest_activities(inp: dict) -> dict:
     trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
 
-    # print("[activity_agent] Calling LLM with prompt (truncated)...")
-    # # call LLM
-    # response = llm.generate([{"role": "user", "content": prompt_text}])
-    # # response format may differ by langchain version - try to extract text safely
-    # text = ""
-    # try:
-    #     # new-style .generations
-    #     gens = response.generations
-    #     if isinstance(gens, list) and gens:
-    #         # each item in gens is a list of Generation objects
-    #         first = gens[0]
-    #         if isinstance(first, list):
-    #             text = first[0].text
+
 
 
 
