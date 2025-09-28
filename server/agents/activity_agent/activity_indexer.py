@@ -341,6 +341,85 @@ def _estimate_price_level(title: str, why: str, docs: List, user_budget: Optiona
     return "medium"
 
 
+# === NEW helper: detect outdoor activities ===
+def _is_outdoor_activity(title: str, why: str) -> bool:
+    """
+    Simple keyword-based detector for outdoor activities.
+    """
+    text = f"{(title or '')} {(why or '')}".lower()
+    outdoor_kw = (
+        "hike", "trek", "beach", "waterfall", "viewpoint", "sunset",
+        "walk", "wild", "safari", "trekking", "cycling", "boat",
+        "rafting", "snorkel", "surf", "climb", "mountain", "hiking"
+    )
+    return any(kw in text for kw in outdoor_kw)
+
+
+# === NEW helper: seasonal/weather risk detection (tries weather_agent then falls back) ===
+def _seasonal_risk_for_location(location: str, date: datetime) -> bool:
+    """
+    Return True if weather/season risk likely for outdoor activities on `date` at `location`.
+    Attempt to call a local weather agent if available. Otherwise use simple month rules.
+    """
+    # Try to call existing weather agent if present (non-breaking)
+    try:
+        # common expected signature: get_weather_forecast(location, date) -> dict
+        from server.agents.weather_agent import get_weather_forecast  # type: ignore
+        try:
+            forecast = get_weather_forecast(location, date)
+            if isinstance(forecast, dict):
+                # look for explicit rain/precip fields
+                prob = forecast.get("rain_probability") or forecast.get("precipitation_probability") or forecast.get("precip_prob")
+                if isinstance(prob, (int, float)):
+                    return float(prob) >= 0.4
+                summary = str(forecast.get("summary", "") or forecast.get("weather", "")).lower()
+                if any(r in summary for r in ("rain", "shower", "storm", "thunder", "wet")):
+                    return True
+        except Exception:
+            # If weather agent call fails, ignore and fallback to seasonal rules
+            pass
+    except Exception:
+        # weather agent not present; use seasonal heuristics
+        pass
+
+    # Fallback seasonal heuristics (simple)
+    # General wet-month sets (island-level heuristic). This is intentionally conservative.
+    month = date.month
+    # months with higher rain risk (examples): Apr-May (inter-monsoon), Oct-Nov (transition), May-Sep (southwest monsoon in parts)
+    wet_months_general = {4, 5, 10, 11}
+    if month in wet_months_general:
+        return True
+
+    # Special-case: if location hints at "trincomalee" or "east", the northeast monsoon (Dec-Feb) can affect it
+    loc_low = (location or "").lower()
+    if "trincomalee" in loc_low or "east" in loc_low:
+        if month in {12, 1, 2}:
+            return True
+
+    # Otherwise assume low risk
+    return False
+
+
+# === NEW helper: produce indoor/safer alternatives for an outdoor activity ===
+def _suggest_alternatives_for_activity(title: str) -> List[str]:
+    """
+    Return a short list of indoor/safer alternatives for a given outdoor activity title.
+    This is intentionally basic but useful: museums, cooking class, tea factory, covered markets, botanical gardens.
+    """
+    text = (title or "").lower()
+    # priority picks based on keywords
+    if "hike" in text or "trek" in text or "mountain" in text:
+        return ["Visit a tea factory / factory tour", "Explore a covered local market or museum"]
+    if "beach" in text or "snorkel" in text or "surf" in text:
+        return ["Visit an indoor aquarium or marine museum", "Relax at a local cafe or indoor cultural show"]
+    if "waterfall" in text or "river" in text or "boat" in text:
+        return ["Visit a nearby museum or botanical garden", "Take a cooking class or tea tasting session"]
+    if "sunset" in text or "viewpoint" in text:
+        return ["Explore a nearby indoor market or craft centre", "Visit the Royal Botanical Gardens or a tea factory tour"]
+    # generic alternatives
+    return ["Visit a museum or cultural center", "Take a local cooking class or tea tasting", "Explore covered local markets"]
+
+
 def suggest_activities(inp: dict) -> dict:
     """
     High-level entry point your orchestrator can call.
@@ -458,8 +537,9 @@ def suggest_activities(inp: dict) -> dict:
         for d in dates:
             # compute fallback price_level using user's budget preference
             user_budget = _get("budget", None)
+            fd = d.strftime("%Y-%m-%d")
             day_plans.append({
-                "date": d.strftime("%Y-%m-%d"),
+                "date": fd,
                 "suggestions": [
                     {
                         "time_of_day": "morning",
@@ -495,6 +575,20 @@ def suggest_activities(inp: dict) -> dict:
                     },
                 ]
             })
+            # Add seasonal alternatives for each suggestion if risk present
+            try:
+                # determine a reasonable location hint (destination preferred)
+                location_hint = destination or (locs[0] if locs else "")
+                date_obj = datetime.strptime(fd, "%Y-%m-%d")
+                risk = _seasonal_risk_for_location(location_hint, date_obj)
+                if risk:
+                    for s in day_plans[-1]["suggestions"]:
+                        if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+                            s["weather_risk"] = True
+                            s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+            except Exception:
+                pass
+
         return {
             "destination": destination,
             "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
@@ -520,6 +614,20 @@ def suggest_activities(inp: dict) -> dict:
             user_budget = _get("budget", None)
             for day in data.get("day_plans", []):
                 suggestions = day.get("suggestions", [])
+                # parse date for weather checks
+                date_str = day.get("date")
+                try:
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d") if date_str else start
+                except Exception:
+                    date_obj = start
+                # choose location hint
+                location_hint = destination or (locs[0] if locs else "")
+                # check risk once per day
+                try:
+                    risk_for_day = _seasonal_risk_for_location(location_hint, date_obj)
+                except Exception:
+                    risk_for_day = False
+
                 for s in suggestions:
                     title = s.get("title", "") or ""
                     # simple heuristic: fraction of top-k docs that mention title tokens
@@ -536,6 +644,16 @@ def suggest_activities(inp: dict) -> dict:
                     if "price_level" not in s:
                         why = s.get("why", "")
                         s["price_level"] = _estimate_price_level(title, why, docs, user_budget)
+
+                    # Add seasonal/weather-aware alternatives if this looks outdoor AND risk present
+                    try:
+                        if risk_for_day and _is_outdoor_activity(title, s.get("why", "")):
+                            s["weather_risk"] = True
+                            if "alternatives" not in s or not s["alternatives"]:
+                                s["alternatives"] = _suggest_alternatives_for_activity(title)
+                    except Exception:
+                        # never let alternatives logic break main flow
+                        pass
         except Exception as ci_e:
             print(f"[activity_agent] Confidence assignment failed: {ci_e}")
 
@@ -551,8 +669,9 @@ def suggest_activities(inp: dict) -> dict:
         user_budget = _get("budget", None)
         day_plans = []
         for d in dates:
+            fd = d.strftime("%Y-%m-%d")
             day_plans.append({
-                "date": d.strftime("%Y-%m-%d"),
+                "date": fd,
                 "suggestions": [
                     {
                         "time_of_day": "morning",
@@ -588,6 +707,18 @@ def suggest_activities(inp: dict) -> dict:
                     },
                 ]
             })
+            # Add seasonal alternatives for this fallback day if risk present
+            try:
+                location_hint = destination or (locs[0] if locs else "")
+                date_obj = datetime.strptime(fd, "%Y-%m-%d")
+                risk = _seasonal_risk_for_location(location_hint, date_obj)
+                if risk:
+                    for s in day_plans[-1]["suggestions"]:
+                        if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+                            s["weather_risk"] = True
+                            s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+            except Exception:
+                pass
 
         return {
             "destination": destination,
