@@ -243,11 +243,12 @@ PROMPT_INSTRUCTIONS = (
     "Evening: sunset/views/markets; Night: dinners/cultural shows/stargazing.\n"
     "- If weather risk (monsoon/season) suggest safer alternatives.\n"
     "- Keep each suggestion concise: a short title and a one-sentence why.\n"
-    "- Include light source hints when possible (host/domain).\n\n"
+    "- Include light source hints when possible (host/domain).\n"
+    "- Add a `price_level` field for each suggestion: one of `low`, `medium`, `high` (estimate from activity type or local price cues).\n\n"
     "Input trip JSON:\n{trip}\n\n"
     "Top-k retrieved context (truncated):\n{context}\n\n"
     "Return **strict JSON** with this shape:\n"
-    '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string] }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
+    '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string], "price_level":"low|medium|high" }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
 )
 
 
@@ -311,6 +312,33 @@ def _compute_confidence_for_title(title: str, docs: List, k: int = 5) -> float:
         if any(tok in content for tok in tokens) or title.lower() in content:
             count += 1
     return float(count) / float(check_k)
+
+
+# === NEW helper: estimate price level for a suggestion ===
+def _estimate_price_level(title: str, why: str, docs: List, user_budget: Optional[str] = None) -> str:
+    """
+    Heuristic rules:
+      - If title/why contains 'free', 'walk', 'hike', 'market', 'beach', 'temple' -> low
+      - If contains 'rooftop', 'fine dining', 'spa', 'luxury', 'private', 'tour' -> high
+      - Otherwise medium.
+    If no decisive keywords, prefer user's budget if provided.
+    """
+    text = f"{(title or '')} {(why or '')}".lower()
+    # low-cost hints
+    low_kw = ("free", "walk", "hike", "market", "street food", "beach", "temple", "public", "park", "local eatery")
+    high_kw = ("rooftop", "fine dining", "spa", "luxury", "private", "exclusive", "guided tour", "paid tour", "ticket", "entrance fee")
+    for kw in low_kw:
+        if kw in text:
+            return "low"
+    for kw in high_kw:
+        if kw in text:
+            return "high"
+    # fallback to user budget preference if present and sensible
+    if isinstance(user_budget, str):
+        ub = user_budget.strip().lower()
+        if ub in ("low", "medium", "high"):
+            return ub
+    return "medium"
 
 
 def suggest_activities(inp: dict) -> dict:
@@ -428,6 +456,8 @@ def suggest_activities(inp: dict) -> dict:
         # build fallback day_plans using dates (guaranteed defined above)
         day_plans = []
         for d in dates:
+            # compute fallback price_level using user's budget preference
+            user_budget = _get("budget", None)
             day_plans.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "suggestions": [
@@ -436,28 +466,32 @@ def suggest_activities(inp: dict) -> dict:
                         "title": f"Explore around {destination or 'the area'}",
                         "why": "Nice light and cooler temps.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level(f"Explore around {destination or 'the area'}", "Nice light and cooler temps.", docs, user_budget)
                     },
                     {
                         "time_of_day": "noon",
                         "title": "Local lunch & shorter indoor stop",
                         "why": "Avoid the heat.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Local lunch & shorter indoor stop", "Avoid the heat.", docs, user_budget)
                     },
                     {
                         "time_of_day": "evening",
                         "title": "Sunset viewpoint or market walk",
                         "why": "Golden hour and local vibes.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Golden hour and local vibes.", docs, user_budget)
                     },
                     {
                         "time_of_day": "night",
                         "title": "Dinner / cultural show",
                         "why": "Relax and enjoy local cuisine/culture.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
                     },
                 ]
             })
@@ -483,6 +517,7 @@ def suggest_activities(inp: dict) -> dict:
         try:
             # Determine k for heuristic: use up to 5 docs
             heuristic_k = min(5, max(1, len(docs)))
+            user_budget = _get("budget", None)
             for day in data.get("day_plans", []):
                 suggestions = day.get("suggestions", [])
                 for s in suggestions:
@@ -497,6 +532,10 @@ def suggest_activities(inp: dict) -> dict:
                     # ensure source_hints exists
                     if "source_hints" not in s:
                         s["source_hints"] = top_sources
+                    # ensure price_level exists; if not compute it
+                    if "price_level" not in s:
+                        why = s.get("why", "")
+                        s["price_level"] = _estimate_price_level(title, why, docs, user_budget)
         except Exception as ci_e:
             print(f"[activity_agent] Confidence assignment failed: {ci_e}")
 
@@ -509,6 +548,7 @@ def suggest_activities(inp: dict) -> dict:
         print(f"[activity_agent] Raw LLM text (truncated): {text[:600]}")
 
         # fallback heuristic (use dates guaranteed to be set)
+        user_budget = _get("budget", None)
         day_plans = []
         for d in dates:
             day_plans.append({
@@ -519,28 +559,32 @@ def suggest_activities(inp: dict) -> dict:
                         "title": f"Explore around {destination or 'the area'}",
                         "why": "Nice light and cooler temps.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level(f"Explore around {destination or 'the area'}", "Nice light and cooler temps.", docs, user_budget)
                     },
                     {
                         "time_of_day": "noon",
                         "title": "Local lunch & shorter indoor stop",
                         "why": "Avoid the heat.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Local lunch & shorter indoor stop", "Avoid the heat.", docs, user_budget)
                     },
                     {
                         "time_of_day": "evening",
                         "title": "Sunset viewpoint or market walk",
                         "why": "Golden hour and local vibes.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Golden hour and local vibes.", docs, user_budget)
                     },
                     {
                         "time_of_day": "night",
                         "title": "Dinner / cultural show",
                         "why": "Relax and enjoy local cuisine/culture.",
                         "source_hints": [],
-                        "confidence": 0.3
+                        "confidence": 0.3,
+                        "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
                     },
                 ]
             })
