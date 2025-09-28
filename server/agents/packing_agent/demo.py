@@ -1,11 +1,6 @@
 import os
 from typing import List
 
-# If your teammate's modules are present, you can import them.
-# For now, we'll define the exact same shape locally for a self-contained demo.
-
-
-
 class ActivityAgentInput:
     def __init__(
         self,
