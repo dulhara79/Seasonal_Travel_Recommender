@@ -28,5 +28,5 @@ def health():
 
 @app.post("/v1/packing/suggest")
 def suggest(req: SuggestRequest) -> Dict[str, Any]:
-    # produce the packing list (LLM if key available, otherwise rules)
+
     return generate_packing_list(req.activity_input.model_dump(), req.suggested_activities, use_llm=True)
