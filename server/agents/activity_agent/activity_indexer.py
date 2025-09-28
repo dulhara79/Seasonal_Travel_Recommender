@@ -348,8 +348,7 @@ def suggest_activities(inp: dict) -> dict:
 
    
 
-    vs = _load_vectorstore()
-    llm = _llm()
+
 
     def _get(key, default=None):
         try:
