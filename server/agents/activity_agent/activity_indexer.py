@@ -305,45 +305,7 @@ def suggest_activities(inp: dict) -> dict:
 
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
-    # if not os.path.isdir(INDEX_DIR):
-    #     print("[activity_agent] Index not found; building now (this may take a few minutes)...")
-    #     build_or_refresh_index()
-
-    # vs = _load_vectorstore()
-    # llm = _llm()
-
-    # destination = inp.destination  or ""
-    # suggest_locations = inp.locations_to_visit or []
-    # locs = _expand_locations(destination, suggest_locations)
-    # retriever = _retriever_for_location(vs, locs, llm)
-
-    # # Build a compact query
-    # prefs = ", ".join(inp.user_preferences or [])
-    # blocks = [
-    #     f"Activities in/near {destination}",
-    #     f"Best things to do in {destination} for {inp.type_of_trip, inp.no_of_traveler}",
-    #     f"Budget: {inp.budget,'any'}; Season: {inp.season,any}; Preferences: {prefs or 'any'}"
-    # ]
-    # if suggest_locations:
-    #     blocks.append("Also consider: " + ", ".join(suggest_locations))
-    # query = " | ".join(blocks)
-
-    # docs = retriever(query)
-
-    # # Format dates
-    # try:
-    #     start = datetime.strptime(inp.start_date, "%Y-%m-%d") if inp.start_date else datetime.today()
-    #     end = datetime.strptime(inp.end_date, "%Y-%m-%d") if inp.end_date else start
-    # except Exception:
-    #     start = datetime.today()
-    #     end = start
-    # dates = _date_range(start, end)
-
-    # context = _format_context(docs)
-
-    # # Convert inp to a JSON-serializable structure before dumping
-    # trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
-    # prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
+    
 
 
    
