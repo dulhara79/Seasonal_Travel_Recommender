@@ -339,75 +339,7 @@ def suggest_activities(inp: dict) -> dict:
 
 
 
-    # --- LLM call: use proper LangChain message objects (HumanMessage) ---
-    from langchain.schema import HumanMessage
 
-    print("[activity_agent] Calling LLM with prompt (truncated)...")
-    text = ""
-
-    # Primary attempt: use generate with a nested list of HumanMessage objects
-    try:
-        response = llm.generate([[HumanMessage(content=prompt_text)]])
-        gens = getattr(response, "generations", None)
-        if isinstance(gens, list) and gens:
-            first = gens[0]
-            # gens[0] is usually a list of Generation objects
-            if isinstance(first, list) and first and hasattr(first[0], "text"):
-                text = first[0].text
-            else:
-                text = str(first[0]) if first else str(response)
-        else:
-            # fallback: try older .llm_output or string form
-            text = getattr(response, "llm_output", {}).get("content", "") or str(response)
-    except Exception as e:
-        # If generate fails for this version, try calling the model directly
-        try:
-            # Many Chat models support __call__ or .predict
-            text = llm.predict(prompt_text)  # best-effort; may raise if not supported
-        except Exception:
-            try:
-                # final fallback: try calling llm as a callable with a HumanMessage
-                res = llm([HumanMessage(content=prompt_text)])
-                # res could be a string or a ChatResult-like object
-                if isinstance(res, str):
-                    text = res
-                else:
-                    # attempt to extract typical attributes
-                    text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
-            except Exception as e2:
-                # If all attempts fail, surface a clear message for debugging
-                text = f"LLM call failed: {e} | fallback error: {e2}"
-
-
-
-
-    # Attempt to parse JSON
-    try:
-        data = json.loads(text)
-        data["status"] = "complete"
-        print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE: {data}")
-        return data
-    except Exception:
-        # fallback heuristic: create minimal day_plans
-        day_plans = []
-        for d in dates:
-            day_plans.append({
-                "date": d.strftime("%Y-%m-%d"),
-                "suggestions": [
-                    {"time_of_day": "morning", "title": f"Explore around {destination}", "why": "Nice light and cooler temps.", "source_hints": []},
-                    {"time_of_day": "noon", "title": "Local lunch & shorter indoor stop", "why": "Avoid heat.", "source_hints": []},
-                    {"time_of_day": "evening", "title": "Sunset viewpoint or market walk", "why": "Golden hour and vibes.", "source_hints": []},
-                    {"time_of_day": "night", "title": "Dinner / cultural show", "why": "Relax and enjoy local cuisine/culture.", "source_hints": []},
-                ]
-            })
-        print(f"\nDEBUG: (exception block) ACTIVITY AGENT LLM RAW RESPONSE: {day_plans, text}")
-        return {
-            "destination": destination,
-            "overall_theme": f"Activities near {destination}",
-            "day_plans": day_plans,
-            "notes": "LLM returned non-JSON; provided fallback suggestions.",
-            "status": "fallback"
-        }
 
 # CLI entry: build index if script run directly
 if __name__ == "__main__":
