@@ -358,13 +358,6 @@ def suggest_activities(inp: dict) -> dict:
     #         first = gens[0]
     #         if isinstance(first, list):
     #             text = first[0].text
-    #         else:
-    #             text = str(first[0])
-    # except Exception:
-    #     try:
-    #         text = response.llm_output.get("content", "") or str(response)
-    #     except Exception:
-    #         text = str(response)
 
 
 
