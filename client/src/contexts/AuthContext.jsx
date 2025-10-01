@@ -133,6 +133,11 @@ export const AuthProvider = ({ children }) => {
     return response.data; // Expects { "message": "Account successfully deleted..." }
   };
 
+  const updateConversationTitle = async (conversationId, title) => {
+    const res = await api.patch(`/conversations/${conversationId}/title`, { title });
+    return res.data;
+  };
+
   // -------------------------------------------------------------------
 
   return (
@@ -148,6 +153,7 @@ export const AuthProvider = ({ children }) => {
         fetchConversationById,
         startNewConversation,
         appendChatMessage,
+  updateConversationTitle,
         deleteConversation,
         deleteAccount,
       }}
