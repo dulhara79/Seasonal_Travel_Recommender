@@ -1,89 +1,160 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { createContext, useState, useContext, useEffect } from "react";
+import axios from "axios";
 
-const AuthContext = createContext()
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(() => localStorage.getItem('access_token'))
-  const navigate = useNavigate()
+const API_BASE_URL = "http://localhost:8000/api";
 
+export const AuthProvider = ({ children }) => {
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // --- Authenticated API Instance ---
+  const api = axios.create({
+    baseURL: API_BASE_URL,
+  });
+
+  api.interceptors.request.use((config) => {
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  });
+  // ----------------------------------
+
+  // --- Auth Logic ---
   useEffect(() => {
-    let mounted = true
-    async function fetchProfile() {
-      if (!token) return
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!res.ok) throw new Error('Unauth')
-        const data = await res.json()
-        if (mounted) setUser(data)
-      } catch (e) {
-        if (mounted) {
-          setUser(null)
-          setToken(null)
-          localStorage.removeItem('access_token')
+    const loadUser = async () => {
+      if (token) {
+        try {
+          const res = await api.get("/auth/me");
+          setUser(res.data);
+          localStorage.setItem("token", token);
+        } catch (error) {
+          console.error("Token expired or invalid", error);
+          setToken(null);
+          localStorage.removeItem("token");
+          setUser(null);
         }
       }
-    }
-    fetchProfile()
-    return () => {
-      mounted = false
-    }
-  }, [token])
+      setIsLoading(false);
+    };
+    loadUser();
+  }, [token]);
 
-  const login = async ({ login, password }) => {
-    const body = new URLSearchParams()
-    body.append('username', login)
-    body.append('password', password)
+  const login = async (username, password) => {
+    const params = new URLSearchParams();
+    params.append("username", username);
+    params.append("password", password);
 
-    const res = await fetch(`${API_BASE}/api/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || 'Login failed')
-    }
-    const data = await res.json()
-    localStorage.setItem('access_token', data.access_token)
-    setToken(data.access_token)
-    return data
-  }
+    const config = {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    };
 
-  const signup = async ({ username, name, email, password }) => {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, name, email, password }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || 'Registration failed')
-    }
-    const data = await res.json()
-    // Auto-login
-    await login({ login: username, password })
-    return data
-  }
+    const res = await axios.post(`${API_BASE_URL}/auth/token`, params, config);
+    setToken(res.data.access_token);
+    // User data will be loaded via useEffect
+  };
 
   const logout = () => {
-    setUser(null)
-    setToken(null)
-    localStorage.removeItem('access_token')
-    navigate('/login')
-  }
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem("token");
+  };
 
-  const value = { user, token, login, signup, logout, isAuthenticated: !!token }
+  // --- Conversation Persistence Functions (using the 'api' instance) ---
+  const getConversationsList = async () => {
+    const res = await api.get("/conversations/list");
+    return res.data;
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  const fetchConversationById = async (conversationId) => {
+    const res = await api.get(`/conversations/${conversationId}`);
+    return res.data;
+  };
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
+  const startNewConversation = async (
+    title = "New Trip",
+    sessionId = "default"
+  ) => {
+    const payload = { title, session_id: sessionId };
+    const res = await api.post("/conversations/", payload);
+    return res.data;
+  };
 
-export default AuthContext
+  const appendChatMessage = async (
+    conversationId,
+    role,
+    text,
+    metadata = {}
+  ) => {
+    // Map common client-side role names to server-expected roles
+    const roleMap = {
+      assistant: "agent",
+      bot: "agent",
+      agent: "agent",
+      user: "user",
+      system: "system",
+    };
+    const serverRole = roleMap[role] || role;
+
+    // Build message object expected by server schema
+    const message = {
+      role: serverRole,
+      text,
+      metadata: metadata || {},
+      timestamp: new Date().toISOString(),
+    };
+
+    const payload = {
+      conversation_id: conversationId,
+      message,
+    };
+
+    try {
+      await api.post("/conversations/append", payload);
+    } catch (error) {
+      // Surface the error so callers can handle it if needed
+      console.error("Failed to append message:", error);
+      throw error;
+    }
+  };
+
+  const deleteConversation = async (convId) => {
+    // Assuming 'api' is an Axios/Fetch instance configured with the base URL and auth headers
+    const response = await api.delete(`/conversations/${convId}`);
+    return response.data; // Expects { "deleted": true, "conversation_id": "..." }
+  };
+
+  const deleteAccount = async () => {
+    // This endpoint handles the deletion of the user and their data on the server
+    const response = await api.delete("/auth/me");
+    return response.data; // Expects { "message": "Account successfully deleted..." }
+  };
+
+  // -------------------------------------------------------------------
+
+  return (
+    <AuthContext.Provider
+      value={{
+        token,
+        user,
+        login,
+        logout,
+        isLoading,
+        api,
+        getConversationsList,
+        fetchConversationById,
+        startNewConversation,
+        appendChatMessage,
+        deleteConversation,
+        deleteAccount,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
