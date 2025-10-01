@@ -1,7 +1,6 @@
 import datetime
 import json
-from typing import Any, List, Dict
-from pydantic import BaseModel  # Added for type hinting clarity on raw outputs
+from typing import Any, List
 
 try:
     import bleach
@@ -32,7 +31,8 @@ def _bleach_clean(text: str, strip: bool = True) -> str:
     if bleach is not None:
         return bleach.clean(text, strip=strip)
     import re
-    if text is None: return ""
+    if text is None:
+        return ""
     s = str(text)
     s = re.sub(r"<[^>]*>", "", s)
     return s
@@ -40,7 +40,8 @@ def _bleach_clean(text: str, strip: bool = True) -> str:
 
 def _sanitize(val: Any, max_len: int = 1000) -> str:
     """Safely coerce to string, clean HTML and truncate."""
-    if val is None: return ""
+    if val is None:
+        return ""
     if isinstance(val, (dict, list)):
         try:
             s = json.dumps(val, ensure_ascii=False)
@@ -74,6 +75,7 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
         _dst = state.get("destination")
         _start = state.get("start_date")
         _end = state.get("end_date")
+        _season = state.get("season")
         _num = state.get("no_of_traveler")
         _budget = state.get("budget")
         _prefs = state.get("user_preferences") or []
@@ -83,23 +85,27 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
         _packing = state.get("packing_list") or []
         _additional = state.get("additional_info")
         _messages = state.get("messages") or []
-        _loc_raw = state.get("location_recommendations") or {}
-        _act_raw = state.get("activity_recommendations") or {}
+        # Accept either naming convention produced by agents: *_recommendations or *_recs
+        _loc_raw = state.get("location_recommendations") or state.get("location_recs") or {}
+        _act_raw = state.get("activity_recommendations") or state.get("activity_recs") or {}
     else:
-        _dst = state.destination
-        _start = state.start_date
-        _end = state.end_date
-        _num = state.no_of_traveler
-        _budget = state.budget
-        _prefs = state.user_preferences or []
-        _type = state.type_of_trip
-        _locations = state.locations_to_visit or []
-        _activities = state.activities or []
-        _packing = state.packing_list or []
-        _additional = state.additional_info
-        _messages = state.messages or []
-        _loc_raw = getattr(state, "location_recommendations", {}) or {}
-        _act_raw = getattr(state, "activity_recommendations", {}) or {}
+        # Pydantic object-like state
+        _dst = getattr(state, "destination", None)
+        _start = getattr(state, "start_date", None)
+        _end = getattr(state, "end_date", None)
+        _num = getattr(state, "no_of_traveler", None)
+        _budget = getattr(state, "budget", None)
+        _prefs = getattr(state, "user_preferences", []) or []
+        _type = getattr(state, "type_of_trip", None)
+        _locations = getattr(state, "locations_to_visit", []) or []
+        _activities = getattr(state, "activities", []) or []
+        _packing = getattr(state, "packing_list", []) or []
+        _additional = getattr(state, "additional_info", None)
+        _messages = getattr(state, "messages", []) or []
+        # Accept multiple possible attribute names on Pydantic objects as well
+        _loc_raw = getattr(state, "location_recommendations", None) or getattr(state, "location_recs", None) or {}
+        _act_raw = getattr(state, "activity_recommendations", None) or getattr(state, "activity_recs", None) or {}
+        _season = getattr(state, "season", None)
 
     # Helper: quickly extract recommended location list if raw provided
     try:
@@ -118,10 +124,14 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
         response_parts.append(f"# 🎉 Your Custom Trip to {_short(_dst, 120)}\n")
 
     index_lines = ["## Quick Links"]
-    if _start and _end: index_lines.append("- Dates & Season")
-    if _locations: index_lines.append("- Recommended Destinations")
-    if _activities: index_lines.append("- Daily Activities")
-    if _packing: index_lines.append("- Packing Essentials")
+    if _start and _end:
+        index_lines.append("- Dates & Season")
+    if _locations:
+        index_lines.append("- Recommended Destinations")
+    if _activities:
+        index_lines.append("- Daily Activities")
+    if _packing:
+        index_lines.append("- Packing Essentials")
     index_lines.append("- Responsible AI Notes")
     response_parts.extend(index_lines)
     response_parts.append("\n---")
@@ -140,8 +150,8 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
 
             # Attempt to pull season from state or infer if possible
             season_text = ""
-            if state.get("season"):
-                season_text = f" This falls during the **{state['season']}** in Sri Lanka, which is a great time for {('coastal activities on the South/West' if 'Southwest' in state['season'] else 'North/East coast exploration') if 'Monsoon' in state['season'] else 'island-wide travel'}. Be prepared!"
+            if _season:
+                season_text = f" This falls during the **{_season}** in Sri Lanka, which is a great time for {('coastal activities on the South/West' if 'Southwest' in _season else 'North/East coast exploration') if 'Monsoon' in _season else 'island-wide travel'}. Be prepared!"
             response_parts.append(f"- Duration: **{start_dt}** to **{end_dt}**.{season_text}")
         except ValueError:
             response_parts.append(f"\n## 🗓️ Dates\n- {_start} → {_end} (Please confirm the date format).\n")
@@ -206,7 +216,8 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
         if packing_obj and isinstance(packing_obj, dict) and packing_obj.get("categories"):
             for cat in packing_obj.get("categories", []):
                 cat_name = cat.get("name") or ""
-                if cat_name: response_parts.append(f"### {cat_name}")
+                if cat_name:
+                    response_parts.append(f"### {cat_name}")
                 for it in cat.get("items", []):
                     if isinstance(it, dict):
                         name, reason = it.get("name"), it.get("reason")
@@ -215,7 +226,8 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
                         response_parts.append(f"- {it}")
                 response_parts.append("")
         else:
-            for item in _packing: response_parts.append(f"- {item}")
+            for item in _packing:
+                response_parts.append(f"- {item}")
             response_parts.append("")
 
     if _additional:
@@ -258,10 +270,24 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
             # from langchain_openai import ChatOpenAI # Removed this import, using _get_summary_llm
 
             summary_prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are a friendly and professional trip planning assistant. 
-                    Refine the provided raw trip summary into a clear, well-structured Markdown document. 
-                    ... (rest of the prompt remains the same) ...
-                    Do NOT share private info. Do NOT share harmful info."""),
+                ("system", """You are a friendly and professional trip planning assistant.  
+                            Your task is to refine the provided raw trip summary into a clear, well-structured **Markdown travel itinerary**.  
+                            Stick to Sri Lankan destinations.
+                            ### Guidelines:
+                            - Present the final output in **properly formatted Markdown** (with headings, subheadings, bullet points, and emphasis where helpful).  
+                            - Include a **short introduction** to the trip.  
+                            - Provide **concise descriptions** of each recommended destination (history, culture, or highlights).  
+                            - Add **practical travel advice** for the locations (best times to visit, cultural tips, transportation notes, packing suggestions, etc.).  
+                            - Ensure recommendations follow **Responsible AI principles**:  
+                              - No harmful, unsafe, or private information.  
+                              - Encourage sustainable and respectful travel.  
+                              - Be inclusive and culturally sensitive.  
+                            
+                            ### Output Style:
+                            - Clear, engaging, and professional tone.  
+                            - Use emojis sparingly to add a friendly touch.  
+                            - Structure the summary so users can easily scan key details (e.g., Quick Links, Itinerary Highlights, Travel Tips).  
+                            """),
                 ("human", "Here is the raw trip summary:\n{raw_info}")
             ])
 
