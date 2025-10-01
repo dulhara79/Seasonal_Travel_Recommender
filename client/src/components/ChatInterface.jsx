@@ -50,6 +50,7 @@ const ChatInterface = () => {
     fetchConversationById,
     startNewConversation,
     appendChatMessage,
+  updateConversationTitle,
     // NEW: Assuming your AuthContext exposes these new API wrappers
     deleteConversation,
     deleteAccount,
@@ -87,6 +88,31 @@ const ChatInterface = () => {
     setPreviousState(null);
     setInput("");
     loadConversations();
+  };
+
+  // Heuristic: compute a friendly conversation title from the user's first message
+  const computeTitleFromQuery = (q) => {
+    if (!q || !q.trim()) return "New Trip";
+    const txt = q.trim();
+    // Try to capture a destination using 'to <destination>' pattern
+    const toMatch = txt.match(/\bto\s+([A-Za-z0-9 \-\'’]{2,60}?)(?:\s+(?:for|in|during|with|on|$))/i);
+    if (toMatch && toMatch[1]) {
+      let dest = toMatch[1].trim();
+      dest = dest.replace(/[.,;!?)]+$/g, "");
+      // Capitalize words
+      dest = dest
+        .split(/\s+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      // Try to capture simple traveler hints (e.g., 'family', 'couple', 'solo', '3 people')
+      const pplMatch = txt.match(/\b(family|couple|solo|group|friends|\d+\s*(people|persons|travellers|travelers|kids|children))\b/i);
+      const suffix = pplMatch ? ` — ${pplMatch[0]}` : "";
+      return `Trip to ${dest}${suffix}`.slice(0, 100);
+    }
+    // Fallback: use first 6 words as a short title
+    const words = txt.split(/\s+/).slice(0, 6).join(" ");
+    const short = words.replace(/[\n\r]/g, " ").replace(/["'`]/g, "");
+    return (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 100);
   };
 
   const loadTrip = async (convId) => {
@@ -179,13 +205,44 @@ const ChatInterface = () => {
     try {
       let activeConvId = currentConvId;
       if (!activeConvId) {
-        const newConv = await startNewConversation(query.substring(0, 50));
+        const title = computeTitleFromQuery(query);
+        const newConv = await startNewConversation(title);
         activeConvId = newConv.id;
         setCurrentConvId(activeConvId);
+        // Optimistically update local conversation list so the sidebar shows the title immediately
+        setConversations((prev) => {
+          try {
+            // avoid duplicates
+            const exists = prev.some((c) => c.id === newConv.id);
+            if (exists) return prev.map((c) => (c.id === newConv.id ? newConv : c));
+            return [newConv, ...(prev || [])];
+          } catch (e) {
+            return prev || [];
+          }
+        });
         loadConversations();
       }
 
       await appendChatMessage(activeConvId, userMessage.role, userMessage.text);
+
+      // If the conversation on the server still has a default title, attempt to update it
+      try {
+        // fetch the conversation to inspect current server title
+        const serverConv = await fetchConversationById(activeConvId);
+        if (!serverConv.title || serverConv.title === "New Trip") {
+          const title = computeTitleFromQuery(query);
+          await updateConversationTitle(activeConvId, title);
+          // Optimistically update local copy as well so the UI reflects the change immediately
+          setConversations((prev) =>
+            (prev || []).map((c) => (c.id === activeConvId ? { ...c, title } : c))
+          );
+          // reload conversations to ensure server-state sync
+          loadConversations();
+        }
+      } catch (err) {
+        // non-fatal; log for debugging
+        console.debug("Could not update conversation title:", err);
+      }
 
       const payload = {
         query: query,
@@ -236,33 +293,32 @@ const ChatInterface = () => {
 
   return (
     <div className="flex h-screen antialiased text-gray-800">
-           {" "}
+      {" "}
       <div className="flex flex-row h-full w-full overflow-x-hidden">
-                {/* Sidebar */}       {" "}
+        {/* Sidebar */}{" "}
         <div className="flex flex-col py-8 pl-6 pr-2 w-72 bg-gray-50 flex-shrink-0 border-r border-gray-200">
-          {/* Header/Title/Logout */}         {" "}
+          {/* Header/Title/Logout */}{" "}
           <div className="flex justify-between items-center h-12 w-full mb-4">
-                       {" "}
-            <div className="text-xl font-bold text-blue-600">Trip Planner</div> 
-                     {" "}
+            {" "}
+            <div className="text-xl font-bold text-blue-600">
+              Trip Planner
+            </div>{" "}
             <button
               onClick={logout}
               className="text-sm text-gray-500 hover:text-red-500 transition duration-150"
             >
-                            Logout            {" "}
-            </button>
-                     {" "}
-          </div>
-                   {" "}
+              Logout{" "}
+            </button>{" "}
+          </div>{" "}
           <p className="text-sm text-gray-600 mb-2">
-                        Welcome, {user?.name || user?.username}!          {" "}
+            Welcome, {user?.name || user?.username}!{" "}
           </p>
-          {/* New Trip Button */}         {" "}
+          {/* New Trip Button */}{" "}
           <button
             onClick={startNewTrip}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 text-sm mb-4"
           >
-                        + Start New Trip          {" "}
+            + Start New Trip{" "}
           </button>
           {/* Trip History List (Scrollable Area) */}
           <div className="flex flex-col space-y-2 overflow-y-auto flex-grow mb-4">
@@ -312,32 +368,27 @@ const ChatInterface = () => {
               <UserMinusIcon className="w-5 h-5 mr-2" />
               Delete Account
             </button>
-          </div>
-                 {" "}
+          </div>{" "}
         </div>
-                {/* Main Chat Area */}       {" "}
+        {/* Main Chat Area */}{" "}
         <div className="flex flex-col flex-auto h-full p-6">
-                   {" "}
+          {" "}
           <div className="flex flex-col flex-auto flex-shrink-0 rounded-2xl bg-gray-100 h-full p-4">
-                        {/* Messages */}           {" "}
+            {/* Messages */}{" "}
             <div className="flex flex-col h-full overflow-x-auto mb-4">
-                           {" "}
+              {" "}
               <div className="flex flex-col h-full">
-                               {" "}
+                {" "}
                 {messages.length === 0 && (
                   <div className="flex items-center justify-center h-full text-gray-500 flex-col">
-                                       {" "}
-                    <h2 className="text-xl mb-2">Welcome!</h2>                 
-                     {" "}
+                    {" "}
+                    <h2 className="text-xl mb-2">Welcome!</h2>{" "}
                     <p className="text-center">
-                                            Start planning your trip. <br />{" "}
-                      Example: "Plan a trip to                       Sri Lanka
-                      for a family of four in late October."                    {" "}
-                    </p>
-                                     {" "}
+                      Start planning your trip. <br /> Example: "Plan a trip to
+                      Sri Lanka for a family of four in late October."{" "}
+                    </p>{" "}
                   </div>
-                )}
-                               {" "}
+                )}{" "}
                 {messages.map((msg, index) => (
                   <div
                     key={index}
@@ -345,59 +396,51 @@ const ChatInterface = () => {
                       msg.isUser ? "justify-end" : "justify-start"
                     } mb-4`}
                   >
-                                       {" "}
+                    {" "}
                     <div
-                      className={`flex flex-col max-w-lg shadow-lg  
-                        ${
-                        msg.isUser
-                          ? "bg-blue-600 text-white rounded-tl-xl rounded-tr-xl rounded-bl-xl"
-                          : "bg-white text-gray-800 rounded-tl-xl rounded-tr-xl rounded-br-xl"
-                      } px-4 py-3`}
+                      className={`flex flex-col max-w-lg shadow-lg 
+            ${
+              msg.isUser
+                ? "bg-blue-600 text-white rounded-tl-xl rounded-tr-xl rounded-bl-xl"
+                : "bg-white text-gray-800 rounded-tl-xl rounded-tr-xl rounded-br-xl"
+            } px-4 py-3`}
                     >
-                                           {" "}
+                      {" "}
                       {msg.isUser ? (
                         <p>{msg.text}</p>
                       ) : (
                         // Render Markdown for bot responses only
                         <MarkdownRenderer content={msg.text} />
-                      )}
-                                           {" "}
+                      )}{" "}
                       <span
                         className={`text-xs mt-1 ${
                           msg.isUser ? "text-blue-200" : "text-gray-400"
                         }`}
                       >
-                                                {formatTimestamp(msg.timestamp)}
-                                             {" "}
-                      </span>
-                                         {" "}
-                    </div>
-                                     {" "}
+                        {formatTimestamp(msg.timestamp)}{" "}
+                      </span>{" "}
+                    </div>{" "}
                   </div>
-                ))}
-                               {" "}
+                ))}{" "}
                 {isLoading && (
                   <div className="flex justify-start mb-4">
-                                       {" "}
+                    {" "}
                     <div className="bg-white text-gray-800 rounded-tl-xl rounded-tr-xl rounded-br-xl px-4 py-3 shadow-md">
-                                           {" "}
-                      <div className="animate-pulse">Thinking...</div>         
-                               {" "}
-                    </div>
-                                     {" "}
+                      {" "}
+                      <div className="animate-pulse">Thinking...</div>{" "}
+                    </div>{" "}
                   </div>
                 )}
-                                <div ref={messagesEndRef} />             {" "}
-              </div>
-                         {" "}
+                <div ref={messagesEndRef} />{" "}
+              </div>{" "}
             </div>
-                        {/* Input Box */}           {" "}
+            {/* Input Box */}{" "}
             <div className="flex flex-row items-center h-16 rounded-xl bg-white w-full px-4">
-                           {" "}
+              {" "}
               <div className="flex-grow ml-4">
-                               {" "}
+                {" "}
                 <form onSubmit={handleSubmit} className="flex w-full">
-                                   {" "}
+                  {" "}
                   <input
                     type="text"
                     value={input}
@@ -409,8 +452,7 @@ const ChatInterface = () => {
                     }
                     disabled={isLoading}
                     className="flex w-full border-none focus:outline-none text-gray-600 placeholder-gray-400 p-2"
-                  />
-                                   {" "}
+                  />{" "}
                   <button
                     type="submit"
                     disabled={isLoading || !input.trim()}
@@ -420,22 +462,15 @@ const ChatInterface = () => {
                         : "text-blue-500 hover:text-700"
                     } transition duration-150`}
                   >
-                                       {" "}
-                    <ArrowUpCircleIcon className="w-8 h-8" />                 {" "}
-                  </button>
-                                 {" "}
-                </form>
-                             {" "}
-              </div>
-                         {" "}
-            </div>
-                     {" "}
-          </div>
-                 {" "}
-        </div>
-             {" "}
-      </div>
-         {" "}
+                    {" "}
+                    <ArrowUpCircleIcon className="w-8 h-8" />{" "}
+                  </button>{" "}
+                </form>{" "}
+              </div>{" "}
+            </div>{" "}
+          </div>{" "}
+        </div>{" "}
+      </div>{" "}
     </div>
   );
 };
