@@ -28,13 +28,13 @@ async def create_conversation(user_id: str, session_id: Optional[str] = None, ti
         created = await db.conversations.find_one({"_id": inserted_id})
         # Convert ObjectId for convenience
         if created:
-            created["id"] = str(created["_id"])
+            # --- MANDATORY FIX: Ensure _id is converted to 'id' before returning ---
+            created["id"] = str(created.pop("_id")) # Use pop to remove the ObjectId key
         print(f"create_conversation: inserted id={inserted_id}")
         return created
     except Exception as e:
         print("create_conversation error:", type(e).__name__, str(e))
         raise
-
 
 async def append_message(conversation_id: str, role: str, text: str, metadata: dict | None = None) -> bool:
     db = get_db()
