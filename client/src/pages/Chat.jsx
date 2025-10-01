@@ -45,7 +45,7 @@ export default function Chat() {
     if (!input.trim() || !activeConv) return
     const payload = {
       conversation_id: activeConv.id,
-      message: { role: 'user', text: input.trim(), metadata: {} },
+      message: { role: 'user', text: input.trim(), metadata: {}, timestamp: new Date().toISOString() },
     }
     const res = await fetch(`${API_BASE}/api/conversations/append`, {
       method: 'POST',
