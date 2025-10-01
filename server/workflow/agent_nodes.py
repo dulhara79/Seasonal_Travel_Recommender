@@ -2,6 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 import json
+from datetime import datetime, timedelta
 
 # --- LangGraph/State Imports ---
 from langgraph.graph import StateGraph
@@ -15,32 +16,145 @@ from server.agents.orchestrator_agent.orchestrator_agent import call_orchestrato
 from server.agents.location_agent.location_agent import run_location_agent as _run_location_agent
 from server.agents.summary_agent.summary_agent import generate_summary as _run_summary_agent
 from server.agents.summary_agent.summary_refiner import refine_summary as _run_summary_refiner
+from server.agents.activity_agent.activity_indexer import suggest_activities
+from server.agents.packing_agent.packing_agent import generate_packing_list
 from server.schemas.orchestrator_schemas import OrchestratorAgent4InputSchema
 
 
-# from server.schemas.location_agent_schemas import LocationAgentOutputSchema # Already in state
-# Placeholder for missing agents
+# --- Utility Functions to Format Structured Agent Outputs ---
+
+def format_packing_list(packing_data: Dict[str, Any]) -> str:
+    """
+    Converts the structured packing list dictionary into a readable Markdown string.
+    """
+    if not packing_data or not packing_data.get('categories'):
+        return "Sorry, I could not generate a packing list at this time."
+
+    packing_text = ["### 🎒 Suggested Packing List\n"]
+
+    for category in packing_data['categories']:
+        name = category.get('name', 'General Items')
+        items = category.get('items', [])
+
+        packing_text.append(f"**{name}:**")
+        if not items:
+            packing_text.append("- No items suggested.")
+            continue
+
+        for item in items:
+            item_name = item.get('name', 'Unknown Item')
+            reason = item.get('reason')
+
+            if reason:
+                # Use a slightly cleaner format for reasons
+                packing_text.append(f"- {item_name} *({reason})*")
+            else:
+                packing_text.append(f"- {item_name}")
+        packing_text.append("")  # Spacer
+
+    if packing_data.get('notes'):
+        notes = " ".join(packing_data['notes']) if isinstance(packing_data['notes'], list) else packing_data['notes']
+        if notes.strip():
+            packing_text.append("---\n")
+            packing_text.append(f"**Notes:** {notes.strip()}")
+
+    return "\n".join(packing_text).strip()
+
+
+def format_activity_list(activity_data: Dict[str, Any]) -> str:
+    """
+    Converts the structured Activity Agent JSON into a clean, markdown-friendly string.
+    """
+    if not activity_data or not activity_data.get('day_plans'):
+        return "I could not generate a detailed activity plan based on the available data."
+
+    destination = activity_data.get("destination", "Your Destination")
+    theme = activity_data.get("overall_theme", "General Exploration")
+
+    summary_parts = []
+    summary_parts.append(f"### 🎉 Activities for {destination}\n")
+    summary_parts.append(f"**Theme:** {theme}\n")
+    summary_parts.append("---\n")
+
+    for day in activity_data.get('day_plans', []):
+        date_str = day.get("date", "Unknown Date")
+        summary_parts.append(f"#### 🗓️ {date_str}\n")
+
+        suggestions = day.get("suggestions", [])
+        for suggestion in suggestions:
+            time = suggestion.get("time_of_day", "Time Unknown").capitalize()
+            title = suggestion.get("title", "Activity")
+            why = suggestion.get("why", "Explore the area.")
+            price = suggestion.get("price_level", "Medium").capitalize()
+
+            # Format each suggestion clearly
+            summary_parts.append(f"- **{time}** ({price} Budget): **{title}**")
+            summary_parts.append(f"  > *Why:* {why}")
+
+            # Add weather risk and alternatives if present
+            if suggestion.get("weather_risk") and suggestion.get("alternatives"):
+                alts = ", ".join(suggestion['alternatives'])
+                summary_parts.append(
+                    f"  > ⚠️ **Risk Alert:** Consider these alternatives due to potential weather: {alts}")
+
+        summary_parts.append("\n")  # Add space after each day
+
+    notes = activity_data.get('notes')
+    if notes:
+        summary_parts.append("---\n")
+        summary_parts.append("### 📝 Notes from Planner\n")
+        summary_parts.append(f"{notes}\n")
+
+    return "\n".join(summary_parts)
+
+
+# === Internal Agent Runner Nodes ===
+
 def _run_activity_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     print("Executing Activity Agent: Generating activity plans...")
+    # The suggest_activities function likely expects a dict of the trip details
+    trip_data_for_activity = state['trip_data'].dict() if state.get('trip_data') else {}
     # --- Actual Agent Logic ---
-    # activity_output = run_activity_agent(state['trip_data'], state['location_recs'])
-    # state['activity_recs'] = activity_output
-    # state['final_response'] = "Generated some great activity suggestions!"
-    # --- Placeholder Logic ---
-    state['activity_recs'] = {"day_plans": [
-        {"date": "2026-07-16", "suggestions": [{"title": "Visit Sigiriya Rock", "time_of_day": "morning"}]}]}
+    activity_output = suggest_activities(trip_data_for_activity)
+    state['activity_recs'] = activity_output
+    # Mirror naming convention to be robust for downstream consumers
+    state['activity_recommendations'] = state['activity_recs']
     state['final_response'] = "Activity plans have been generated."
     return state
 
 
 def _run_packing_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     print("Executing Packing Agent: Generating packing list...")
+    # The generate_packing_list function expects a dict of the trip details
+    trip_data_for_packing = state['trip_data'].dict() if state.get('trip_data') else {}
+
+    # Extract existing activity recs if available, or pass an empty list
+    activity_titles = []
+    activity_recs = state.get('activity_recs')
+    if activity_recs and activity_recs.get('day_plans'):
+        for day in activity_recs['day_plans']:
+            for suggestion in day.get('suggestions', []):
+                activity_titles.append(suggestion.get('title'))
+
     # --- Actual Agent Logic ---
-    # packing_output = run_packing_agent(state['trip_data'])
-    # state['packing_recs'] = packing_output
-    # --- Placeholder Logic ---
-    state['packing_recs'] = {"categories": [
-        {"name": "Essentials", "items": [{"name": "Sunscreen", "reason": "High UV index in Sri Lanka"}]}]}
+    # The generate_packing_list function returns a DICT now
+    packing_output = generate_packing_list(trip_data_for_packing, suggested_activities=activity_titles)
+
+    # Heuristic: if the LLM-produced packing output looks sparse (e.g., very few categories
+    # or categories with very few items), prefer deterministic fallback to ensure useful results.
+    try:
+        cats = packing_output.get("categories") if isinstance(packing_output, dict) else None
+        total_items = sum(len(c.get("items", [])) for c in cats) if cats else 0
+        if not cats or total_items <= 1:
+            # Re-generate using deterministic rules (no LLM) for more robust coverage
+            packing_output = generate_packing_list(trip_data_for_packing, suggested_activities=activity_titles, use_llm=False)
+    except Exception:
+        # If any error occurs during the heuristic, just proceed with original packing_output
+        pass
+
+    state['packing_recs'] = packing_output
+    # Mirror naming convention so the Summary node can read either key
+    state['packing_list'] = state['packing_recs']
     state['final_response'] = "Packing list is ready!"
     return state
 
@@ -99,7 +213,8 @@ def route_user_query(state: TripPlanState) -> Dict[str, Any]:
     # If we have a previous summary and the user asks to modify the plan,
     # prefer the refiner path so we update the existing plan instead of
     # restarting extraction which may re-ask missing fields.
-    if state.get("latest_summary") and (any(k in query for k in style_keywords) or any(k in query for k in modify_keywords)):
+    if state.get("latest_summary") and (
+            any(k in query for k in style_keywords) or any(k in query for k in modify_keywords)):
         determined_intent = "refine_summary"
     else:
         determined_intent = raw_intent
@@ -130,16 +245,6 @@ def orchestrator_node(state: TripPlanState) -> Dict[str, Any]:
     orchestrator_input = OrchestratorAgent4InputSchema(
         query=state['user_query']
     )
-
-    # FIX 2: Remove the unnecessary conversion/error-prone line.
-    # The existing trip_data is not passed as 'prev_data' in the provided call_orchestrator_agent
-    # The call_orchestrator_agent function you provided in the prompt takes the state and user_responses.
-    # It does not take prev_response_pydantic as an argument in its signature in your provided code block:
-    # def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses: list = None):
-
-    # If you need to pass the *current* state of the trip data, you must adjust the call:
-    # We will assume for now that the orchestrator is designed to start fresh with the new query
-    # and merge with the current state *internally* (which it did in the provided code).
 
     # Determine if we're resuming a previously awaiting orchestrator state.
     prev_trip_data = None
@@ -207,8 +312,9 @@ def location_node(state: TripPlanState) -> Dict[str, Any]:
     trip_data_for_location = state['trip_data'].dict() if state['trip_data'] else {}
 
     location_output = _run_location_agent(trip_data_for_location)
-
     state['location_recs'] = location_output  # LocationAgentOutputSchema.parse_obj(location_output)
+    # Mirror naming convention to support summary agent expectations
+    state['location_recommendations'] = state['location_recs']
     state['final_response'] = f"Location recommendations generated for {trip_data_for_location.get('destination')}."
     return state
 
@@ -219,12 +325,16 @@ def summary_node(state: TripPlanState) -> Dict[str, Any]:
     print("--- NODE: Summary Agent Executing...")
 
     # Combine all structured data into a single dict for the Summary Agent Input Schema
+    # Use .get with sensible fallbacks so standalone agent outputs or differently
+    # named keys don't cause KeyError and are still picked up by the summary.
+    trip_data_dict = state['trip_data'].dict() if state.get('trip_data') else {}
+
     summary_input = {
-        **state['trip_data'].dict(),
-        "location_recommendations": state['location_recs'],
-        "activity_recommendations": state['activity_recs'],
-        "packing_list": state['packing_recs'],  # Assuming packing_recs is structured
-        "status": "completed"
+        **trip_data_dict,
+        "location_recommendations": state.get('location_recs') or state.get('location_recommendations') or {},
+        "activity_recommendations": state.get('activity_recs') or state.get('activity_recommendations') or {},
+        "packing_list": state.get('packing_recs') or state.get('packing_list') or {},
+        "status": "completed",
     }
 
     summary_output_pydantic = _run_summary_agent(summary_input, use_llm=True)
@@ -251,22 +361,38 @@ def refiner_node(state: TripPlanState) -> Dict[str, Any]:
 
 # === 7. Simple Agent Nodes (Location/Activity/Packing) ===
 def simple_location_node(state: TripPlanState) -> Dict[str, Any]:
+    """Runs the Location Agent and formats the raw JSON for a direct user response."""
     # Runs the location agent as a single step and returns control
     state = location_node(state)  # Reuse the location logic
+    # Use json.dumps for the raw location recs since we don't have a simple formatter defined for this output
     state[
         'final_response'] = f"Here are some location ideas based on your query:\n\n{json.dumps(state['location_recs'], indent=2)}"
     return state
 
 
 def simple_activity_node(state: TripPlanState) -> Dict[str, Any]:
-    # Placeholder for running a single activity agent call
+    """Runs the Activity Agent and formats the structured result for a direct user response."""
+    # Runs the activity agent as a single step and returns control
     state = _run_activity_agent(state)
-    state['final_response'] = "Here are some activity ideas..."  # Update this to pull actual recs
+
+    # CRITICAL FIX: Use the utility function to format the structured activity plan
+    activity_data = state.get('activity_recs') or state.get('activity_recommendations')
+    formatted_plan = format_activity_list(activity_data)
+
+    # The final response is now the readable Markdown plan
+    state['final_response'] = formatted_plan
     return state
 
 
 def simple_packing_node(state: TripPlanState) -> Dict[str, Any]:
-    # Placeholder for running a single packing agent call
+    """Runs the Packing Agent and formats the structured result for a direct user response."""
+    # Runs the packing agent as a single step and returns control
     state = _run_packing_agent(state)
-    state['final_response'] = "Here is a packing list..."  # Update this to pull actual recs
+
+    # CRITICAL FIX: Use the utility function to format the structured packing list
+    packing_data = state.get('packing_recs') or state.get('packing_list')
+    formatted_list = format_packing_list(packing_data)
+
+    # The final response is now the readable Markdown list
+    state['final_response'] = formatted_list
     return state
