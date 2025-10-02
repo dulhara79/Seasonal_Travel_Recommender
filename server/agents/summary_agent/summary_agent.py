@@ -1,6 +1,7 @@
 import datetime
 import json
-from typing import Any, List
+from typing import Any, List, Dict
+from pydantic import BaseModel  # Added for type hinting clarity on raw outputs
 
 try:
     import bleach
@@ -14,7 +15,6 @@ except Exception:
 
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.summary_schemas import SummaryAgentInputSchema, SummaryAgentOutputSchema
-
 
 def _get_summary_llm(api_key: str, model_name: str, temperature: float = 0.5):
     """Initializes and returns the ChatOpenAI instance for summarization."""
@@ -33,6 +33,7 @@ def _bleach_clean(text: str, strip: bool = True) -> str:
     import re
     if text is None:
         return ""
+
     s = str(text)
     s = re.sub(r"<[^>]*>", "", s)
     return s
@@ -40,8 +41,7 @@ def _bleach_clean(text: str, strip: bool = True) -> str:
 
 def _sanitize(val: Any, max_len: int = 1000) -> str:
     """Safely coerce to string, clean HTML and truncate."""
-    if val is None:
-        return ""
+    if val is None: return ""
     if isinstance(val, (dict, list)):
         try:
             s = json.dumps(val, ensure_ascii=False)
