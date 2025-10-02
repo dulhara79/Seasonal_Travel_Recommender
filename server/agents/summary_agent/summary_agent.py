@@ -16,11 +16,11 @@ from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.summary_schemas import SummaryAgentInputSchema, SummaryAgentOutputSchema
 
 
-def _get_summary_llm(api_key: str, model_name: str, temperature: float = 0.3):
+def _get_summary_llm(api_key: str, model_name: str, temperature: float = 0.5):
     """Initializes and returns the ChatOpenAI instance for summarization."""
     try:
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(api_key=api_key, model=model_name, temperature=temperature, max_tokens=800)
+        return ChatOpenAI(api_key=api_key, model=model_name, temperature=temperature, max_tokens=1000)
     except Exception as e:
         print(f"Error initializing LLM: {e}")
         return None
@@ -192,7 +192,22 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
                 tod = sug.get("time_of_day", "")
                 title = _short(sug.get("title"), max_len=200)
                 why = _short(sug.get("why"), max_len=400)
-                response_parts.append(f"- **{tod.capitalize()}**: {title} — *{why}*")
+                sources = sug.get("source_hints", [])
+                price_level = sug.get("price_level", "")
+                confidence = sug.get("confidence", "")
+
+                # build suggestion block
+                suggestion_text = f"- **{tod.capitalize()}**: {title}\n"
+                suggestion_text += f"  - 📝 *{why}*\n"
+                if price_level:
+                    suggestion_text += f"  - 💰 Price Level: {price_level.capitalize()}\n"
+                if confidence:
+                    suggestion_text += f"  - 📊 Confidence: {confidence}\n"
+                if sources:
+                    src_list = ", ".join(sources) if isinstance(sources, list) else str(sources)
+                    suggestion_text += f"  - 🔗 Sources: {src_list}\n"
+
+                response_parts.append(suggestion_text.strip())
             response_parts.append("")
     elif _activities:
         response_parts.append("\n## 🎡 Key Activities")
@@ -213,18 +228,34 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
         except Exception:
             packing_obj = None
 
-        if packing_obj and isinstance(packing_obj, dict) and packing_obj.get("categories"):
-            for cat in packing_obj.get("categories", []):
-                cat_name = cat.get("name") or ""
-                if cat_name:
-                    response_parts.append(f"### {cat_name}")
-                for it in cat.get("items", []):
-                    if isinstance(it, dict):
-                        name, reason = it.get("name"), it.get("reason")
-                        response_parts.append(f"- {name} {'— ' + reason if reason else ''}")
-                    else:
-                        response_parts.append(f"- {it}")
+        if packing_obj and isinstance(packing_obj, dict):
+            # ✅ Show summary & duration
+            if packing_obj.get("summary"):
+                response_parts.append(f"**Overview:** {packing_obj['summary']}")
+            if packing_obj.get("duration_days"):
+                response_parts.append(f"**Duration:** {packing_obj['duration_days']} days\n")
+
+            # ✅ Show categories & items
+            if packing_obj.get("categories"):
+                for cat in packing_obj.get("categories", []):
+                    cat_name = cat.get("name") or ""
+                    if cat_name:
+                        response_parts.append(f"### {cat_name}")
+                    for it in cat.get("items", []):
+                        if isinstance(it, dict):
+                            name, reason = it.get("name"), it.get("reason")
+                            response_parts.append(f"- **{name}** — {reason}" if reason else f"- **{name}**")
+                        else:
+                            response_parts.append(f"- {it}")
+                    response_parts.append("")
+
+            # ✅ Show notes at the end
+            if packing_obj.get("notes"):
+                response_parts.append("### 📝 Notes")
+                for note in packing_obj["notes"]:
+                    response_parts.append(f"- {note}")
                 response_parts.append("")
+
         else:
             for item in _packing:
                 response_parts.append(f"- {item}")
@@ -243,15 +274,16 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
     response_parts.append(
         "- **Bias Mitigation**: Recommendations aim to be diverse but may reflect patterns in available data. If you notice bias or a preference for a certain area/activity, please provide feedback.")
     response_parts.append(
-        "- **Privacy**: No personal identifying information (beyond what you explicitly typed) is stored in this summary output.")
+        "- **Privacy**: No personal identifying information (beyond what you explicitly typed) is stored in this summary output. We Store minimal data to improve service quality.")
 
     # Source and status notes (Retained)
     try:
         loc_status = _loc_raw.get("status") if isinstance(_loc_raw, dict) else None
         act_status = _act_raw.get("status") if isinstance(_act_raw, dict) else None
+        pack_status = "completed" if _packing else "skipped"
         if loc_status or act_status:
             response_parts.append(
-                f"- **Agent Status**: Location planning: {loc_status if loc_status else 'N/A'}, Activity planning: {act_status if act_status else 'N/A'}")
+                f"- **Agent Status**: Location planning: {loc_status if loc_status else 'N/A'}, Activity planning: {act_status if act_status else 'N/A'}, Packing list: {pack_status}.")
     except Exception:
         pass
 
