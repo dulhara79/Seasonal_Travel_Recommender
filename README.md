@@ -1,112 +1,140 @@
 # Seasonal Travel Recommender
 
-A lightweight multi-agent travel assistant that helps plan short trips by extracting trip details from user input, suggesting activities, checking likely weather, producing a packing list, and generating a friendly trip summary.
+Developer README — accurate snapshot of the codebase and how to run and interact with it.
 
-This repository contains a FastAPI backend (agents and workflow) and a small React + Vite frontend.
+This project is a multi-agent travel planning assistant focused on Sri Lanka. It uses a FastAPI backend to orchestrate several agents (orchestrator, location, activity, packing, summary) and a React/Vite frontend.
 
-Contents
-- `client/` — React (Vite) frontend that provides a Conversation UI and Summary view.
-- `server/` — FastAPI backend with agents, workflow graph, APIs, and schemas.
-- `data/` — Prebuilt vector stores and databases used by agents (FAISS, Chroma).
+## Repo layout (important files)
 
-Quick overview
-- Purpose: Given a free-text user request (destination, dates, preferences), extract structured trip details, reason about weather and seasonal suitability, suggest activities, and produce a packing list and a human-friendly summary.
-- Intended audience: demo projects, coursework, and as a starting point for building advanced travel assistants.
+- server/: FastAPI backend and agent implementations.
+  - server/api/main.py — FastAPI app entrypoint.
+  - server/api/route.py — Main planning endpoint: `POST /api/query`.
+  - server/api/conversations.py — Conversation CRUD endpoints: create, append, list, get, delete, update title.
+  - server/utils/ — DB and config helpers (chat_history.py, config.py, db.py).
+  - server/agents/ — Individual agent implementations (orchestrator_agent, summary_agent, location_agent, activity_agent, packing_agent, etc.).
+  - server/workflow/ — LangGraph workflow definition and agent nodes (`workflow.py`, `agent_nodes.py`).
+  - server/schemas/ — Pydantic schemas used by agents and API.
 
-Architecture
-- Frontend: React + Vite app in `client/`.
-- Backend: FastAPI app in `server/` exposing REST endpoints and orchestrating a workflow of modular agents.
-- Agents: Python modules implementing responsibilities such as extraction (orchestrator), activity suggestion (RAG + LLM fallback), packing generator, and summary generation.
+- client/: React + Vite frontend.
+  - client/src/contexts/AuthContext.jsx — API wrappers and auth.
+  - client/src/components/ChatInterface.jsx — Main chat UI and integration with `/api/query` and conversations API.
 
-Key files and modules
-- `server/api/main.py` — FastAPI application, CORS config, and app entry points.
-- `server/api/route.py` — API routes (e.g., `/api/chat`) that run the orchestrator/workflow.
-- `server/workflow/graph_builder.py` — Builds the workflow/state graph that connects agents.
-- `server/agents/` — Folder containing agent implementations (orchestrator, activity agent, summary agent, packing agent, etc.).
+- data/: Bundled vector stores and FAISS/Chroma indexes used by agents.
 
-Requirements
-- Python 3.10+ recommended. See `server/requirements.txt` for details (FastAPI, Uvicorn, LangChain and related packages, HTTPX, spaCy, etc.).
-- Node.js + npm (or Yarn) for the frontend (see `client/package.json`).
+## Quick start (developer)
 
-Quick start — server (development)
-1. Create and activate a Python virtual environment and install dependencies:
+Prerequisites:
+- Python 3.11+ (recommended)
+- Node.js 18+ (for client)
+- MongoDB instance (local or remote)
 
-```powershell
-cd server
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
+1. Backend (PowerShell commands)
+
+# from repo root
+cd server; python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
+# Copy environment variables
+copy ..\.env.example .\.env
+# Edit server/.env and fill your keys (OpenAI, MongoDB)
 
-2. Configure environment variables required by LLM providers and other services (do NOT commit secrets). Common variables used by the codebase include `OPENAI_API_KEY` and `OPENAI_MODEL` — check `server/utils/config.py` for the exact names and defaults.
+# Run the API (dev)
+uvicorn server.api.main:app --reload --port 8000
 
-```powershell
-$env:OPENAI_API_KEY = "sk-..."
-$env:OPENAI_MODEL = "gpt-4o-mini"
-```
+2. Frontend (PowerShell)
 
-3. (Optional) Pre-build or let the activity agent build its FAISS index automatically on first run. The index data is stored under `data/activity_faiss/`.
-
-4. Run the FastAPI server (from repository root or `server/`):
-
-```powershell
-cd server
-uvicorn server.api.main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-The server exposes a health endpoint and the main chat/orchestrator endpoint (see API section below).
-
-Quick start — client (development)
-1. Install and start the frontend dev server:
-
-```powershell
 cd client
 npm install
 npm run dev
-```
+# Open http://localhost:5173
 
-2. By default the frontend expects the backend to be reachable by the address allowed in CORS (the server currently allows `http://localhost:5173` by default). Adjust `server/api/main.py` CORS settings if you run the client on a different port.
+## Environment variables
+See `.env.example` for the full list. Key ones:
+- MONGODB_URI, MONGODB_DB — MongoDB connection
+- OPENAI_API_KEY, OPENAI_MODEL — LLM access
+- GEMINI_API_KEY, GEMINI_MODEL — optional
+- JWT_SECRET — for auth
+- ALLOWED_ORIGINS — CORS settings
 
-API (important endpoints)
-- `GET /health` — health check (returns JSON with status).
-- `POST /api/chat` — main entry point. Accepts a JSON body matching `UserQuerySchema` in `server/schemas/userQuery_schema.py` (typically `{ "query": "..." }`) and returns a structured response containing the generated summary and intermediate status.
+## API reference
 
-Data & indexes
-- `data/activity_faiss/` — FAISS index used by the activity agent.
-- `data/orchestrator_chroma/` — Chroma DB used by the orchestrator (if present).
+1. POST /api/query
+- Purpose: Run the planning workflow for a user query. The workflow is resumable and non-blocking for the orchestrator.
+- Request JSON shape:
+  {
+    "query": "I want to plan a trip to Matara for 4 people in October",
+    "previous_state": null // or the last `current_state` returned by the API
+  }
+- Response JSON shape:
+  {
+    "response": "<final_response text or follow-up question>",
+    "current_state": { ... }  // Full state object; contains structured fields and metadata
+  }
 
-Development notes
-- Agents are implemented as modular Python packages under `server/agents/`. Each agent exposes functions used by the workflow; the orchestrator builds a graph of agent steps in `server/workflow/graph_builder.py`.
-- The project uses LangChain-style integrations and local vector stores. Check the agents for details on how they fetch or refresh vector indexes and how they call LLMs.
-- The frontend can call gateway endpoints directly or use agent-specific proxy endpoints mounted under `/agents/<agent_name>` (see `client/README.md`).
+Important keys in `current_state`:
+- trip_data: Orchestrator output (may be a Pydantic-like dict); fields include: destination, start_date, end_date, no_of_traveler, user_preferences, type_of_trip, status, messages
+- location_recs / location_recommendations: structured location agent output
+- activity_recs / activity_recommendations: activity planner output (may include `day_plans`)
+- packing_recs / packing_list: packing agent output
+- latest_summary: last generated summary (markdown)
+- final_response: the message text to show the user
+- _processing_steps: a list of lightweight step records: { node, timestamp, note }
+- _processing_last_node: the last node name that executed (string)
 
-Testing
-- Unit tests are under `server/test/`. Run tests from the `server` folder after installing test dependencies:
+Notes:
+- Orchestrator non-blocking behavior: if the orchestrator needs more information, the API returns `trip_data.status == 'awaiting_user_input'` and `trip_data.messages` will contain a follow-up question(s). The frontend should display the question to the user and then call `/api/query` again with `query` set to the user's answer and `previous_state` set to the last `current_state` returned — the router will route the reply back to the orchestrator which resumes the loop.
 
-```powershell
-cd server
-# activate venv first
-pip install pytest
-pytest -q
-```
+2. Conversations endpoints (server/api/conversations.py)
+- POST /api/conversations/ — Create a conversation. Payload: { session_id?: str, title?: str }
+- POST /api/conversations/append — Append a message. Payload shape:
+  {
+    "conversation_id": "<id>",
+    "message": {
+      "role": "user|agent|system",
+      "text": "...",
+      "metadata": { ... },
+      "timestamp": "2025-10-01T12:34:56Z"
+    }
+  }
+  The client (`AuthContext.appendChatMessage`) already constructs this shape.
+- GET /api/conversations/list — List user's conversations
+- GET /api/conversations/{id} — Get a single conversation
+- DELETE /api/conversations/{id} — Delete
+- PATCH /api/conversations/{id}/title — Update title: payload { "title": "New title" }
 
-Security & operational notes
-- Keep API keys and secrets out of source control. Use environment variables or a secrets manager.
-- LLM calls may incur cost — configure model selection and temperature in `server/utils/config.py`.
-- Be mindful of rate limits and token usage when running large batches of requests.
+## Orchestrator behavior & resume flow
+- The orchestrator agent extracts structured trip data using an LLM. Mandatory fields are: destination, start_date, end_date, no_of_traveler, type_of_trip, user_preferences.
+- If any mandatory field is missing, the orchestrator returns immediately with status `awaiting_user_input` and a `messages` array containing a follow-up question: { type: 'followup', field: '<field>', question: '<text>' }
+- The frontend should present the question to the user and then re-call `/api/query` with `previous_state` set to the last `current_state` and `query` equal to the user's reply.
+- The backend router detects when `trip_data.status == 'awaiting_user_input'` and routes the incoming reply to the orchestrator node so the agent will resume using the `user_responses` parameter.
 
-Suggested next steps and improvements
-- Add `.env.example` documenting required environment variables.
-- Add CI that validates the FAISS build and runs unit tests.
-- Improve agent discovery so the frontend can list available agents dynamically.
+## Frontend notes
+- `client/src/contexts/AuthContext.jsx` contains API wrappers; `appendChatMessage` now sends a message object with a timestamp and metadata.
+- `client/src/components/ChatInterface.jsx` receives the `current_state` from `/api/query` and shows a small processing area with the last executing node and a collapsible processing steps timeline using `_processing_last_node` and `_processing_steps`.
+- The frontend derives a friendly conversation title from the first user query and PATCHes it to `/api/conversations/{id}/title` if the server-side title remains default.
 
-Contributing
-- Please open issues or pull requests. Provide small, focused changes and include tests for new behavior.
+## Agents overview
+- orchestrator_agent: Extracts structured trip data, produces follow-up questions, validates dates, infers Sri Lanka seasons.
+- location_agent: Recommends destinations (returns `location_recs`).
+- activity_agent: Produces `activity_recommendations` with `day_plans` (each day contains `suggestions` with title, why, time_of_day, price_level, confidence).
+- packing_agent: Produces `packing_recs` / `packing_list` with categories and notes.
+- summary_agent: Consumes the structured outputs and returns a Markdown summary; robust to key-name variants (activity_recs vs activity_recommendations).
 
-Maintainers / contributors
-- Dulhara Kaushalya — https://github.com/dulhara79
-- Senuvi Layathma — https://github.com/SENUVI20
-- Dewdu Sendanayake — https://github.com/DewduSendanayake
-- Uvindu Seneviratne — https://github.com/UVINDUSEN
+## Development notes & tips
+- Workflow engine: `server/workflow/workflow.py` builds a StateGraph with nodes defined in `agent_nodes.py` — changes there affect routing and conditional logic.
+- To test resumable orchestrator flows manually:
+  1. POST /api/query with { "query": "I want to plan a trip to Sri Lanka for 4" }
+  2. If response.trip_data.status == 'awaiting_user_input', read trip_data.messages[0].question and show to user.
+  3. POST /api/query again with query set to the user's answer and previous_state set to the last returned `current_state`.
 
-License
-- MIT — see `LICENSE` file for details.
+## Troubleshooting
+- 422 on `/api/conversations/append`: Ensure your payload matches the expected nested `message` shape. The client context's `appendChatMessage` helper constructs the correct payload.
+- If the workflow fails to initialize, check the startup logs. Missing env vars (OpenAI key, Mongo URI) are common.
+
+## Next improvements (ideas)
+- Add SSE or WebSocket streaming for per-node progress updates to the frontend.
+- Add unit tests for `summary_agent` to validate packing/activity formatting.
+- Provide a sample dataset for local development (small FAISS/Chroma) and deterministic mocks for the LLM calls.
+
+
+## License
+MIT
