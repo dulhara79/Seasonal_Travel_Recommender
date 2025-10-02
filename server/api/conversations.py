@@ -3,6 +3,8 @@ from server.api.auth import get_current_user
 from server.schemas.chat_schema import ConversationCreate, AppendMessagePayload
 from server.utils.chat_history import create_conversation, append_message, get_conversation, \
     list_conversations_for_user, delete_conversation
+from server.utils.chat_history import update_conversation_title
+
 from typing import List, Dict, Any # Added Dict, Any for the helper function
 from bson.objectid import ObjectId # <--- NEW: Import ObjectId for type checking
 
@@ -85,3 +87,20 @@ async def delete_conv(conversation_id: str, current_user=Depends(get_current_use
         raise HTTPException(status_code=403, detail="Not allowed")
     ok = await delete_conversation(conversation_id)
     return {"deleted": ok}
+
+
+@router.patch("/{conversation_id}/title")
+async def update_title(conversation_id: str, payload: dict, current_user=Depends(get_current_user)) -> dict:
+    """Updates the title of a conversation. Payload shape: {"title": "New title"}"""
+    conv = await get_conversation(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.get("user_id") != current_user.get("id"):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    title = payload.get("title")
+    if not title:
+        raise HTTPException(status_code=400, detail="Title required")
+    updated = await update_conversation_title(conversation_id, title)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update title")
+    return convert_doc_to_json_serializable(updated)

@@ -47,3 +47,12 @@ desktop.ini
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.webp
+/public/favicon_io

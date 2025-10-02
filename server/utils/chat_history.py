@@ -99,3 +99,22 @@ async def delete_conversation(conversation_id: str) -> bool:
     db = get_db()
     res = await db.conversations.delete_one({"_id": ObjectId(conversation_id)})
     return res.deleted_count == 1
+
+
+async def update_conversation_title(conversation_id: str, title: str) -> dict | None:
+    """Update conversation title and return updated document (with 'id' key)."""
+    db = get_db()
+    try:
+        res = await db.conversations.update_one(
+            {"_id": ObjectId(conversation_id)},
+            {"$set": {"title": title, "updated_at": datetime.utcnow()}}
+        )
+        if res.modified_count == 1:
+            doc = await db.conversations.find_one({"_id": ObjectId(conversation_id)})
+            if doc:
+                doc["id"] = str(doc.pop("_id"))
+                return doc
+        return None
+    except Exception as e:
+        print("update_conversation_title error:", type(e).__name__, str(e))
+        raise

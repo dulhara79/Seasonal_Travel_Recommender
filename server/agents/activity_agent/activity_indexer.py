@@ -533,48 +533,71 @@ def suggest_activities(inp: dict) -> dict:
     if not isinstance(text, str) or not text.strip():
         logger.error("[activity_agent] LLM returned empty response; using fallback suggestions. Prompt (truncated): %s", prompt_text[:600])
         # build fallback day_plans using dates (guaranteed defined above)
+        # If we have specific locations (locs) or a destination, synthesize
+        # concrete suggestions from them so downstream agents get useful data.
         day_plans = []
         for d in dates:
-            # compute fallback price_level using user's budget preference
             user_budget = _get("budget", None)
             fd = d.strftime("%Y-%m-%d")
-            day_plans.append({
-                "date": fd,
-                "suggestions": [
-                    {
-                        "time_of_day": "morning",
-                        "title": f"Explore around {destination or 'the area'}",
-                        "why": "Nice light and cooler temps.",
-                        "source_hints": [],
-                        "confidence": 0.3,
-                        "price_level": _estimate_price_level(f"Explore around {destination or 'the area'}", "Nice light and cooler temps.", docs, user_budget)
-                    },
-                    {
-                        "time_of_day": "noon",
-                        "title": "Local lunch & shorter indoor stop",
-                        "why": "Avoid the heat.",
-                        "source_hints": [],
-                        "confidence": 0.3,
-                        "price_level": _estimate_price_level("Local lunch & shorter indoor stop", "Avoid the heat.", docs, user_budget)
-                    },
-                    {
-                        "time_of_day": "evening",
-                        "title": "Sunset viewpoint or market walk",
-                        "why": "Golden hour and local vibes.",
-                        "source_hints": [],
-                        "confidence": 0.3,
-                        "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Golden hour and local vibes.", docs, user_budget)
-                    },
-                    {
-                        "time_of_day": "night",
-                        "title": "Dinner / cultural show",
-                        "why": "Relax and enjoy local cuisine/culture.",
-                        "source_hints": [],
-                        "confidence": 0.3,
-                        "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
-                    },
-                ]
+
+            # Build a richer set of suggestions derived from known locations
+            suggestions = []
+            primary = destination or (locs[0] if locs else "the area")
+
+            # Morning: visit primary point of interest
+            suggestions.append({
+                "time_of_day": "morning",
+                "title": f"Visit {primary}",
+                "why": f"{primary} offers a great morning experience and cooler temperatures.",
+                "source_hints": top_sources,
+                "confidence": 0.5,
+                "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
             })
+
+            # Noon: food or shorter indoor stop (use a nearby location name if available)
+            suggestions.append({
+                "time_of_day": "noon",
+                "title": f"Local lunch and short indoor stop near {primary}",
+                "why": "Rest and try local cuisine.",
+                "source_hints": top_sources,
+                "confidence": 0.4,
+                "price_level": _estimate_price_level("Local lunch", "Try local stalls or mid-range cafes", docs, user_budget)
+            })
+
+            # Evening: sunset/market
+            suggestions.append({
+                "time_of_day": "evening",
+                "title": f"Sunset viewpoint or market walk at {primary}",
+                "why": "Golden hour and local vibes.",
+                "source_hints": top_sources,
+                "confidence": 0.4,
+                "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Local atmosphere", docs, user_budget)
+            })
+
+            # Night: dinner/cultural show
+            suggestions.append({
+                "time_of_day": "night",
+                "title": "Dinner / cultural show",
+                "why": "Relax and enjoy local cuisine or a brief cultural performance.",
+                "source_hints": top_sources,
+                "confidence": 0.4,
+                "price_level": _estimate_price_level("Dinner / cultural show", "Local cuisine/culture", docs, user_budget)
+            })
+
+            # Add seasonal alternatives for each suggestion if risk present
+            try:
+                location_hint = destination or (locs[0] if locs else "")
+                date_obj = datetime.strptime(fd, "%Y-%m-%d")
+                risk = _seasonal_risk_for_location(location_hint, date_obj)
+                if risk:
+                    for s in suggestions:
+                        if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+                            s["weather_risk"] = True
+                            s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+            except Exception:
+                pass
+
+            day_plans.append({"date": fd, "suggestions": suggestions})
             # Add seasonal alternatives for each suggestion if risk present
             try:
                 # determine a reasonable location hint (destination preferred)
@@ -593,7 +616,7 @@ def suggest_activities(inp: dict) -> dict:
             "destination": destination,
             "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
             "day_plans": day_plans,
-            "notes": "LLM returned empty; provided fallback suggestions.",
+            "notes": "LLM returned empty; provided synthesized suggestions based on destination and sources.",
             "status": "fallback",
             "top_sources": top_sources
         }
@@ -658,6 +681,28 @@ def suggest_activities(inp: dict) -> dict:
             print(f"[activity_agent] Confidence assignment failed: {ci_e}")
 
         print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
+
+        # If the LLM returned but omitted day_plans, synthesize from locations to
+        # avoid returning an empty or trivial plan to downstream agents.
+        if not data.get("day_plans"):
+            synthesized = []
+            primary = destination or (locs[0] if locs else "the area")
+            user_budget = _get("budget", None)
+            for d in dates:
+                fd = d.strftime("%Y-%m-%d")
+                suggestions = [
+                    {
+                        "time_of_day": "morning",
+                        "title": f"Visit {primary}",
+                        "why": f"{primary} is a great morning stop.",
+                        "source_hints": top_sources,
+                        "confidence": 0.5,
+                        "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
+                    }
+                ]
+                synthesized.append({"date": fd, "suggestions": suggestions})
+            data["day_plans"] = synthesized
+
         return data
     except Exception as parse_exc:
         logger.error("[activity_agent] Could not parse LLM output as JSON: %s", parse_exc)

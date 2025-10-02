@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import json
+from datetime import datetime
 import traceback
 
 # Internal dependencies
@@ -119,6 +119,21 @@ async def process_query(
             # Update the state with the node's output
             last_node = list(step_output.keys())[-1]
             final_state.update(step_output[last_node])
+
+            # Record lightweight processing metadata so the frontend can show
+            # which agent/node ran and a short timeline of steps.
+            try:
+                final_state.setdefault("_processing_steps", [])
+                final_state["_processing_steps"].append({
+                    "node": last_node,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "note": f"Completed node {last_node}",
+                })
+                # Keep last node easy to access
+                final_state["_processing_last_node"] = last_node
+            except Exception:
+                # Never fail the whole workflow for metadata logging
+                pass
 
         # Add the final AI response to history
         if final_state.get("final_response"):
