@@ -246,6 +246,7 @@ def orchestrator_node(state: TripPlanState) -> Dict[str, Any]:
         query=state['user_query']
     )
 
+
     # Determine if we're resuming a previously awaiting orchestrator state.
     prev_trip_data = None
     if state.get('trip_data'):
@@ -381,6 +382,7 @@ def simple_activity_node(state: TripPlanState) -> Dict[str, Any]:
 
     # The final response is now the readable Markdown plan
     state['final_response'] = formatted_plan
+
     return state
 
 
@@ -395,4 +397,5 @@ def simple_packing_node(state: TripPlanState) -> Dict[str, Any]:
 
     # The final response is now the readable Markdown list
     state['final_response'] = formatted_list
+
     return state

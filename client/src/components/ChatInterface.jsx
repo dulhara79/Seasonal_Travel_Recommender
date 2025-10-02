@@ -776,7 +776,6 @@ const ChatInterface = () => {
                     </div>
                   </div>
                 )}
-
                 {messages.map((msg, index) => (
                   <div
                     key={index}

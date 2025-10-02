@@ -4,6 +4,7 @@ from server.schemas.chat_schema import ConversationCreate, AppendMessagePayload
 from server.utils.chat_history import create_conversation, append_message, get_conversation, \
     list_conversations_for_user, delete_conversation
 from server.utils.chat_history import update_conversation_title
+
 from typing import List, Dict, Any # Added Dict, Any for the helper function
 from bson.objectid import ObjectId # <--- NEW: Import ObjectId for type checking
 
