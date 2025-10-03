@@ -16,7 +16,8 @@ from server.workflow.agent_nodes import (
     refiner_node,
     simple_location_node,
     simple_activity_node,
-    simple_packing_node
+    simple_packing_node,
+    explorer_agent_node
 )
 from server.schemas.orchestrator_schemas import OrchestratorAgent4OutpuSchema
 
@@ -31,6 +32,7 @@ def build_trip_workflow():
     workflow.add_node("router", route_user_query)
     workflow.add_node("chat_agent", chat_node)
     workflow.add_node("orchestrator_agent", orchestrator_node)
+    workflow.add_node("explorer_agent", explorer_agent_node)
 
     # Full Planning Chain Nodes
     workflow.add_node("location_agent", location_node)
@@ -72,6 +74,7 @@ def build_trip_workflow():
             "activity_agent": "chat_agent",  # Path 3: Single-Shot Activity Query
             "packing_agent": "chat_agent",  # Path 3: Single-Shot Packing Query
             "refine_summary": "refine_summary",  # Path 4: Summary Editing
+            "explorer_agent": "explorer_agent",  # Path 5: Explorer Agent (RAG)
         }
     )
 
@@ -99,6 +102,7 @@ def build_trip_workflow():
     workflow.add_edge("chat_agent", END)
     workflow.add_edge("summary_agent", END)
     workflow.add_edge("refine_summary", END)
+    workflow.add_edge("explorer_agent", END)
     workflow.add_edge("simple_location", END)
     workflow.add_edge("simple_activity", END)
     workflow.add_edge("simple_packing", END)
