@@ -21,6 +21,7 @@ system_prompt = """
                     * **Asking for destination ideas/places to visit:** `location_agent`
                     * **Asking for things to do/attractions in a specific place:** `activity_agent`
                     * **Asking for a packing list/what to bring:** `packing_agent`
+                    * **User provides a URL (link) and asks to summarize it or ask a question from it:** `explorer_agent`
                 """
 
 def create_decision_agent():

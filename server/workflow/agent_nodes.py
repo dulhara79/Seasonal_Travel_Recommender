@@ -2,6 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 import json
+import re
 from datetime import datetime, timedelta
 
 # --- LangGraph/State Imports ---
@@ -18,6 +19,7 @@ from server.agents.summary_agent.summary_agent import generate_summary as _run_s
 from server.agents.summary_agent.summary_refiner import refine_summary as _run_summary_refiner
 from server.agents.activity_agent.activity_indexer import suggest_activities
 from server.agents.packing_agent.packing_agent import generate_packing_list
+from server.agents.explorer_agent.explorer_agent import run_explorer_rag, extract_url_and_question, format_docs_for_state
 from server.schemas.orchestrator_schemas import OrchestratorAgent4InputSchema
 
 
@@ -210,6 +212,18 @@ def route_user_query(state: TripPlanState) -> Dict[str, Any]:
         "skip hiking",
     ]
 
+    # 3. NEW CRITICAL LOGIC: RAG Resumption
+    # If a URL is currently active and the new query is NOT a core planning request,
+    # force the explorer path to allow follow-up questions on the link content.
+    if state.get("current_link_url"):
+        # Check if the user is explicitly starting a new trip plan
+        if raw_intent not in ["orchestrator_agent", "refine_summary"]:
+            # Check if the user is asking a question (not just general chat)
+            if raw_intent != "chat_agent" or "question" in state["user_query"].lower() or "what" in state[
+                "user_query"].lower():
+                print("DEBUG: Forcing 'explorer_agent' path for follow-up RAG query.")
+                return {"intent": "explorer_agent"}
+
     # If we have a previous summary and the user asks to modify the plan,
     # prefer the refiner path so we update the existing plan instead of
     # restarting extraction which may re-ask missing fields.
@@ -360,7 +374,72 @@ def refiner_node(state: TripPlanState) -> Dict[str, Any]:
     return state
 
 
-# === 7. Simple Agent Nodes (Location/Activity/Packing) ===
+# === 7. Explorer Node ===
+def explorer_agent_node(state: TripPlanState) -> Dict[str, Any]:
+    """
+    Handles RAG queries by visiting a link, storing content, and answering questions.
+    """
+    user_query = state["user_query"]
+    current_url = state.get("current_link_url")
+    link_content = state.get("current_link_content")
+
+    # 1. Check for a new URL in the current query
+    new_url, question = extract_url_and_question(user_query)  # Use the helper from my previous response
+
+    # CASE A: A new URL is detected or the state is empty (clear previous context)
+    if new_url and new_url != current_url:
+        print(f"--- NODE: Explorer Agent Executing (NEW URL): {new_url}")
+        state["current_link_url"] = new_url
+        state["current_link_content"] = None  # Clear old content
+
+        # Load and process content (using logic from previous response)
+        try:
+            # This function should: scrape the URL, split the text, and return the answer AND the chunked documents
+            answer, doc_chunks = run_explorer_rag(new_url, question, content=None)
+
+            # Persist the content for future questions
+            state["current_link_content"] = format_docs_for_state(
+                doc_chunks)  # Helper to convert Document objects to JSON/Dict
+            state["final_response"] = answer
+            return state
+        except Exception as e:
+            error_msg = f"Error processing link {new_url}: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            state["final_response"] = error_msg
+            # Clear URL and content on failure
+            state["current_link_url"] = None
+            state["current_link_content"] = None
+            return state
+
+    # CASE B: No new URL, but content is already in state (RESUME RAG)
+    elif link_content:
+        print(f"--- NODE: Explorer Agent Executing (RESUMED RAG) on {current_url}")
+
+        try:
+            # This function should: re-create the VectorStore from the stored content
+            # and run the RAG chain on the new question.
+            answer, _ = run_explorer_rag(current_url, user_query, content=link_content)
+            state["final_response"] = answer
+            return state
+        except Exception as e:
+            error_msg = f"Error answering question from stored content: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            state["final_response"] = error_msg
+            # Clear URL and content on failure
+            state["current_link_url"] = None
+            state["current_link_content"] = None
+            return state
+
+    # CASE C: No URL provided and no content stored (Fallback to Chat)
+    else:
+        print("--- NODE: Explorer Agent received query without link/context. Routing to Chat.")
+        # Fallback to chat_agent or give a prompt
+        state["intent"] = "chat_agent"
+        state["final_response"] = "To use the explorer, please provide a link and your question/summary request."
+        return state
+
+
+# === 8. Simple Agent Nodes (Location/Activity/Packing) ===
 def simple_location_node(state: TripPlanState) -> Dict[str, Any]:
     """Runs the Location Agent and formats the raw JSON for a direct user response."""
     # Runs the location agent as a single step and returns control
