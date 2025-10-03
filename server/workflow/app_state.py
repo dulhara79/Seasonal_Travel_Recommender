@@ -24,6 +24,12 @@ class TripPlanState(TypedDict):
     # === Routing State ===
     intent: Optional[str]  # Determined by the Decision Agent (e.g., 'orchestrator_agent')
 
+    # === Explorer Agent State ===
+    # Stores the URL provided by the user, persisted across turns.
+    current_link_url: Optional[str]
+    # Stores the loaded and chunked documents/text from the URL for RAG.
+    current_link_content: Optional[List[Dict[str, Any]]]
+
     # === Planning Data (Structured Schemas) ===
     # This stores the mandatory, validated planning data
     trip_data: Optional[OrchestratorAgent4OutpuSchema]
