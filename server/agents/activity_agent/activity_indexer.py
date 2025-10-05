@@ -181,14 +181,16 @@ def _date_range(start: datetime, end: datetime):
     return days
 
 
-def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
-    names = [primary.strip().lower()] if primary else []
-    if suggest_locations:
-        for s in suggest_locations:
-            n = s.strip().lower()
-            if n and n not in names:
-                names.append(n)
-    return names or [primary.strip().lower()]
+# def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
+#     names = [primary.strip().lower()] if primary else []
+#     if suggest_locations:
+#         for s in suggest_locations:
+#             n = s.strip().lower()
+#             if n and n not in names:
+#                 names.append(n)
+#     return names or [primary.strip().lower()]
+
+
 
 
 def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
