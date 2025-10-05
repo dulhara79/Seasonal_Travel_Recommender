@@ -229,27 +229,27 @@ def _llm():
 
 
 # A lightweight prompt assembler for the LLM (system + task instructions)
-BASE_SYSTEM = (
-    "You are ActivityAgent, a travel activity planner for Sri Lanka. "
-    "Given retrieved web snippets and the user's trip details, produce practical, recent-feeling suggestions. "
-    "Create a per-day plan with four slots: morning, noon, evening, night. "
-    "Tailor to season, budget, group size, and preferences."
-)
+# BASE_SYSTEM = (
+#     "You are ActivityAgent, a travel activity planner for Sri Lanka. "
+#     "Given retrieved web snippets and the user's trip details, produce practical, recent-feeling suggestions. "
+#     "Create a per-day plan with four slots: morning, noon, evening, night. "
+#     "Tailor to season, budget, group size, and preferences."
+# )
 
-PROMPT_INSTRUCTIONS = (
-    "Rules:\n"
-    "- Prefer activities close to the provided location(s).\n"
-    "- Morning: outdoor/hikes/sightseeing; Noon: indoor/food/rest/museums; "
-    "Evening: sunset/views/markets; Night: dinners/cultural shows/stargazing.\n"
-    "- If weather risk (monsoon/season) suggest safer alternatives.\n"
-    "- Keep each suggestion concise: a short title and a one-sentence why.\n"
-    "- Include light source hints when possible (host/domain).\n"
-    "- Add a `price_level` field for each suggestion: one of `low`, `medium`, `high` (estimate from activity type or local price cues).\n\n"
-    "Input trip JSON:\n{trip}\n\n"
-    "Top-k retrieved context (truncated):\n{context}\n\n"
-    "Return **strict JSON** with this shape:\n"
-    '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string], "price_level":"low|medium|high" }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
-)
+# PROMPT_INSTRUCTIONS = (
+#     "Rules:\n"
+#     "- Prefer activities close to the provided location(s).\n"
+#     "- Morning: outdoor/hikes/sightseeing; Noon: indoor/food/rest/museums; "
+#     "Evening: sunset/views/markets; Night: dinners/cultural shows/stargazing.\n"
+#     "- If weather risk (monsoon/season) suggest safer alternatives.\n"
+#     "- Keep each suggestion concise: a short title and a one-sentence why.\n"
+#     "- Include light source hints when possible (host/domain).\n"
+#     "- Add a `price_level` field for each suggestion: one of `low`, `medium`, `high` (estimate from activity type or local price cues).\n\n"
+#     "Input trip JSON:\n{trip}\n\n"
+#     "Top-k retrieved context (truncated):\n{context}\n\n"
+#     "Return **strict JSON** with this shape:\n"
+#     '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string], "price_level":"low|medium|high" }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
+# )
 
 
 def _format_context(docs, max_chars: int = 2400) -> str:
