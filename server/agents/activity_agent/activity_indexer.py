@@ -278,12 +278,25 @@ def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     for d in docs:
         meta = d.metadata or {}
         src = meta.get("source") or meta.get("url") or ""
-        if src:
-            if src not in sources:
-                sources.append(src)
+        if not src:
+            continue
+        # prefer non-llm_generated sources
+        if "llm_generated" in src:
+            continue
+        if src not in sources:
+            sources.append(src)
         if len(sources) >= k:
             break
+    # if none found, fall back to llm_generated sources
+    if not sources:
+        for d in docs:
+            src = (d.metadata or {}).get("source","")
+            if src and src not in sources:
+                sources.append(src)
+            if len(sources) >= k:
+                break
     return sources
+
 
 
 def _compute_confidence_for_title(title: str, docs: List, k: int = 5) -> float:
