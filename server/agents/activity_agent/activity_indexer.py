@@ -254,6 +254,8 @@ def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
 #     return retrieve
 
 
+
+
 def _llm():
     try:
         return ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0.2)
