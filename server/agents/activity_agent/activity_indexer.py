@@ -589,12 +589,38 @@ def suggest_activities(inp: dict) -> dict:
         end = start
     dates = _date_range(start, end)
 
+#######CHANGE STARTS HERE#######
+
+    # Dates parsing already done above (dates variable)
+    num_days = max(1, len(dates))
+
+    # Build retriever context with dynamic top_k depending on trip length
+    locs = _expand_locations(destination, suggest_locations)
+    # ask for more docs when the trip is longer
+    desired_docs = max(12, num_days * 8)
+    retriever = _retriever_for_location(vs, locs, llm, top_k=desired_docs)
+
+    # Build a compact query (same logic you had originally)
+    blocks = [
+        f"Activities in/near {destination}" if destination else "Activities",
+        f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
+        f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
+    ]
+    if suggest_locations:
+        blocks.append("Also consider: " + ", ".join(suggest_locations))
+    query = " | ".join(blocks)
+
+    # Retrieve docs (chunks) using dynamic fetch size
+    try:
+        docs = retriever(query)
+    except Exception as e:
+        print(f"[activity_agent] Retriever failed: {e}")
+        docs = []
 
 
 
 
 
-    
 
     # Format context for LLM and extract provenance/top sources
     context = _format_context(docs)
