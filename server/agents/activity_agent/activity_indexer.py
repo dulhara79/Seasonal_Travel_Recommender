@@ -527,95 +527,95 @@ def _suggest_alternatives_for_activity(title: str) -> List[str]:
     return ["Visit a museum or cultural center", "Take a local cooking class or tea tasting", "Explore covered local markets"]
 
 
-def suggest_activities(inp: dict) -> dict:
-    """
-    High-level entry point your orchestrator can call.
-    Accepts either a dict or a pydantic-like object.
-    Returns a dict matching the JSON shape expected by the orchestrator.
-    """
+# def suggest_activities(inp: dict) -> dict:
+#     """
+#     High-level entry point your orchestrator can call.
+#     Accepts either a dict or a pydantic-like object.
+#     Returns a dict matching the JSON shape expected by the orchestrator.
+#     """
 
-    print(f"\nDEBUG: suggest_activities called with inp={inp}")
+#     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
-    # Ensure index + vectorstore available
-    if not os.path.isdir(INDEX_DIR):
-        print("[activity_agent] Index not found; building now (this may take a few minutes)...")
-        build_or_refresh_index()
+#     # Ensure index + vectorstore available
+#     if not os.path.isdir(INDEX_DIR):
+#         print("[activity_agent] Index not found; building now (this may take a few minutes)...")
+#         build_or_refresh_index()
 
-    vs = _load_vectorstore()
-    llm = _llm()
+#     vs = _load_vectorstore()
+#     llm = _llm()
 
-    # Accept either a dict or a pydantic model-like object.
-    def _get(key, default=None):
-        try:
-            if isinstance(inp, dict):
-                return inp.get(key, default)
-            return getattr(inp, key, default)
-        except Exception:
-            return default
+#     # Accept either a dict or a pydantic model-like object.
+#     def _get(key, default=None):
+#         try:
+#             if isinstance(inp, dict):
+#                 return inp.get(key, default)
+#             return getattr(inp, key, default)
+#         except Exception:
+#             return default
 
-    # Safe accessors
-    destination = (_get("destination", "") or "").strip()
-    suggest_locations = _get("suggest_locations", []) or []
-    user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
-    prefs = ", ".join(user_prefs)
+#     # Safe accessors
+#     destination = (_get("destination", "") or "").strip()
+#     suggest_locations = _get("suggest_locations", []) or []
+#     user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
+#     prefs = ", ".join(user_prefs)
 
-    # Build retriever context
-    locs = _expand_locations(destination, suggest_locations)
-    retriever = _retriever_for_location(vs, locs, llm)
+#     # Build retriever context
+#     locs = _expand_locations(destination, suggest_locations)
+#     retriever = _retriever_for_location(vs, locs, llm)
 
-    # Build a compact query (same logic you had originally)
-    blocks = [
-        f"Activities in/near {destination}" if destination else "Activities",
-        f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
-        f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
-    ]
-    if suggest_locations:
-        blocks.append("Also consider: " + ", ".join(suggest_locations))
-    query = " | ".join(blocks)
+#     # Build a compact query (same logic you had originally)
+#     blocks = [
+#         f"Activities in/near {destination}" if destination else "Activities",
+#         f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
+#         f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
+#     ]
+#     if suggest_locations:
+#         blocks.append("Also consider: " + ", ".join(suggest_locations))
+#     query = " | ".join(blocks)
 
-    # Retrieve docs (chunks)
-    try:
-        docs = retriever(query)
-    except Exception as e:
-        print(f"[activity_agent] Retriever failed: {e}")
-        docs = []
+#     # Retrieve docs (chunks)
+#     try:
+#         docs = retriever(query)
+#     except Exception as e:
+#         print(f"[activity_agent] Retriever failed: {e}")
+#         docs = []
 
-    # Dates parsing (ensure dates always defined for fallback)
-    try:
-        start = datetime.strptime(_get("start_date"), "%Y-%m-%d") if _get("start_date") else datetime.today()
-        end = datetime.strptime(_get("end_date"), "%Y-%m-%d") if _get("end_date") else start
-    except Exception:
-        start = datetime.today()
-        end = start
-    dates = _date_range(start, end)
+#     # Dates parsing (ensure dates always defined for fallback)
+#     try:
+#         start = datetime.strptime(_get("start_date"), "%Y-%m-%d") if _get("start_date") else datetime.today()
+#         end = datetime.strptime(_get("end_date"), "%Y-%m-%d") if _get("end_date") else start
+#     except Exception:
+#         start = datetime.today()
+#         end = start
+#     dates = _date_range(start, end)
 
-#######CHANGE STARTS HERE#######
+# #######CHANGE STARTS HERE#######
 
-    # Dates parsing already done above (dates variable)
-    num_days = max(1, len(dates))
+#     # Dates parsing already done above (dates variable)
+#     num_days = max(1, len(dates))
 
-    # Build retriever context with dynamic top_k depending on trip length
-    locs = _expand_locations(destination, suggest_locations)
-    # ask for more docs when the trip is longer
-    desired_docs = max(12, num_days * 8)
-    retriever = _retriever_for_location(vs, locs, llm, top_k=desired_docs)
+#     # Build retriever context with dynamic top_k depending on trip length
+#     locs = _expand_locations(destination, suggest_locations)
+#     # ask for more docs when the trip is longer
+#     desired_docs = max(12, num_days * 8)
+#     retriever = _retriever_for_location(vs, locs, llm, top_k=desired_docs)
 
-    # Build a compact query (same logic you had originally)
-    blocks = [
-        f"Activities in/near {destination}" if destination else "Activities",
-        f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
-        f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
-    ]
-    if suggest_locations:
-        blocks.append("Also consider: " + ", ".join(suggest_locations))
-    query = " | ".join(blocks)
+#     # Build a compact query (same logic you had originally)
+#     blocks = [
+#         f"Activities in/near {destination}" if destination else "Activities",
+#         f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
+#         f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
+#     ]
+#     if suggest_locations:
+#         blocks.append("Also consider: " + ", ".join(suggest_locations))
+#     query = " | ".join(blocks)
 
-    # Retrieve docs (chunks) using dynamic fetch size
-    try:
-        docs = retriever(query)
-    except Exception as e:
-        print(f"[activity_agent] Retriever failed: {e}")
-        docs = []
+#     # Retrieve docs (chunks) using dynamic fetch size
+#     try:
+#         docs = retriever(query)
+#     except Exception as e:
+#         print(f"[activity_agent] Retriever failed: {e}")
+#         docs = []
 
 
 
