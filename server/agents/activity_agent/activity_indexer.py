@@ -251,6 +251,27 @@ def _llm():
 #     '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string], "price_level":"low|medium|high" }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
 # )
 
+BASE_SYSTEM = (
+    "You are ActivityAgent, a travel activity planner for Sri Lanka. "
+    "Given retrieved web snippets and the user's trip details, produce practical, recent-feeling suggestions. "
+    "Create a per-day plan with four slots: morning, noon, evening, night. "
+    "Tailor to season, budget, group size, and preferences."
+)
+
+PROMPT_INSTRUCTIONS = (
+    "IMPORTANT RULES (ENFORCE EXACT OUTPUT):\n"
+    "- You MUST return exactly one `day_plans` entry per date contained in the Input trip JSON. "
+    "If the trip spans N distinct dates, output N day_plans entries in the same chronological order.\n"
+    "- Each day_plans entry MUST contain up to four suggestions mapped to time_of_day values: morning, noon, evening, night. "
+    "If a slot is unavailable, return an explicit placeholder suggestion (title + why).\n"
+    "- Prefer activities located as close as possible to the provided destination(s). If you are uncertain about distance, indicate low confidence in the suggestion.\n"
+    "- Return STRICT JSON only, with the schema below. Do not output any narrative text outside the JSON.\n\n"
+    "Input trip JSON:\n{trip}\n\n"
+    "Top-k retrieved context (truncated):\n{context}\n\n"
+    "Return **strict JSON** with this shape:\n"
+    '{{\n  "destination": string,\n  "overall_theme": string,\n  "day_plans": [\n    {{\n      "date": "YYYY-MM-DD",\n      "suggestions": [\n        {{ "time_of_day":"morning|noon|evening|night", "title": string, "why": string, "source_hints":[string], "price_level":"low|medium|high", "confidence": number }}\n      ]\n    }}\n  ],\n  "notes": string\n}}\n'
+)
+
 
 def _format_context(docs, max_chars: int = 2400) -> str:
     out = []
