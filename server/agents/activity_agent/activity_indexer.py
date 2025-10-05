@@ -883,32 +883,32 @@ def _suggest_alternatives_for_activity(title: str) -> List[str]:
     #                     "title": "Dinner / cultural show",
     #                     "why": "Relax and enjoy local cuisine/culture.",
     #                     "source_hints": [],
-                        "confidence": 0.3,
-                        "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
-                    },
-                ]
-            })
-            # Add seasonal alternatives for this fallback day if risk present
-            try:
-                location_hint = destination or (locs[0] if locs else "")
-                date_obj = datetime.strptime(fd, "%Y-%m-%d")
-                risk = _seasonal_risk_for_location(location_hint, date_obj)
-                if risk:
-                    for s in day_plans[-1]["suggestions"]:
-                        if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
-                            s["weather_risk"] = True
-                            s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
-            except Exception:
-                pass
+        #                 "confidence": 0.3,
+        #                 "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
+        #             },
+        #         ]
+        #     })
+        #     # Add seasonal alternatives for this fallback day if risk present
+        #     try:
+        #         location_hint = destination or (locs[0] if locs else "")
+        #         date_obj = datetime.strptime(fd, "%Y-%m-%d")
+        #         risk = _seasonal_risk_for_location(location_hint, date_obj)
+        #         if risk:
+        #             for s in day_plans[-1]["suggestions"]:
+        #                 if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+        #                     s["weather_risk"] = True
+        #                     s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+        #     except Exception:
+        #         pass
 
-        return {
-            "destination": destination,
-            "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
-            "day_plans": day_plans,
-            "notes": "LLM returned non-JSON; provided fallback suggestions.",
-            "status": "fallback",
-            "top_sources": top_sources
-        }
+        # return {
+        #     "destination": destination,
+        #     "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
+        #     "day_plans": day_plans,
+        #     "notes": "LLM returned non-JSON; provided fallback suggestions.",
+        #     "status": "fallback",
+        #     "top_sources": top_sources
+        # }
 
 
 # # CLI entry: build index if script run directly
