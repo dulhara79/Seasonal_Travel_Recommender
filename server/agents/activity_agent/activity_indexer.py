@@ -1071,6 +1071,41 @@ def suggest_activities(inp: dict) -> dict:
         # retriever may be either a callable function (our wrapper) or an object
         if callable(retriever):
             docs = retriever(query)
+
+
+    # --- LLM fallback if index lacks local evidence ---
+    try:
+        # count local hits conservatively: check if destination tokens appear in doc text or source
+        loc_tokens = [l.lower() for l in (locs or []) if l]
+        local_hits = 0
+        for d in docs:
+            txt = ((d.metadata or {}).get("source", "") + " " + (d.page_content or "")).lower()
+            if any(tok in txt for tok in loc_tokens):
+                local_hits += 1
+
+        # If not enough local docs, call LLM to generate local activities and prepend them as synthetic docs.
+        if local_hits < 2 and destination:
+            # fetch generated local suggestions
+            gen_items = _llm_fetch_local_activities(destination, prefs, num_days=num_days, items_per_day=4, llm_model=llm)
+            if gen_items:
+                # convert generated items to fake Document-like objs to give LLM context later
+                class _SimpleDoc:
+                    def __init__(self, content, meta):
+                        self.page_content = content
+                        self.metadata = meta
+                synth_docs = []
+                for i, gi in enumerate(gen_items):
+                    content = json.dumps(gi, ensure_ascii=False)
+                    meta = {"source": "llm_generated", "tags": [destination.lower()]}
+                    synth_docs.append(_SimpleDoc(content, meta))
+                # Prepend synthetic docs so they are used as context by the main LLM prompt
+                docs = synth_docs + (docs or [])
+    except Exception as e:
+        print(f"[activity_agent] LLM fallback generation failed: {e}")
+    # --- end fallback ---
+
+
+
         else:
             # try common retriever API
             get_docs = getattr(retriever, "get_relevant_documents", None)
