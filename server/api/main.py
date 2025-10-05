@@ -40,14 +40,14 @@ async def startup_event():
     # Attempt to connect to MongoDB and log status
     try:
         await connect_to_mongo()
-        print("Server started and MongoDB connected.")
+        print("[SUCCESS] Server initialization complete. MongoDB connection verified.")
     except Exception as e:
         print(f"ERROR: Failed to connect to MongoDB: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await close_mongo_connection()
-    print("Server shutdown")
+    print("[INFO] Server shutdown complete.")
 
 @app.get("/health")
 def health_check():
