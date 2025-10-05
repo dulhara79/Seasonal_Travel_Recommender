@@ -373,6 +373,98 @@ def _format_context(docs, max_chars: int = 2400) -> str:
     return "\n".join(out)
 
 
+
+
+    # --- ADD THIS: LLM fallback to generate local activities when index lacks local docs ---
+_GENERATED_CACHE = os.path.join(os.path.dirname(INDEX_DIR), "generated_local_cache.json")
+
+def _load_generated_cache():
+    try:
+        if os.path.exists(_GENERATED_CACHE):
+            with open(_GENERATED_CACHE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_generated_cache(cache: dict):
+    try:
+        os.makedirs(os.path.dirname(_GENERATED_CACHE), exist_ok=True)
+        with open(_GENERATED_CACHE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def _llm_fetch_local_activities(location: str, prefs: str, num_days: int = 3, items_per_day: int = 4, llm_model=None):
+    """
+    Ask the LLM (ChatOpenAI) to generate structured, local activity suggestions for `location`.
+    Returns a list of dict items with keys: date_offset(0..), time_of_day, title, why, source_hint, price_level.
+    We return *raw suggestions* (not full day_plans), so the normal pipeline can synthesize days from them.
+    """
+    # basic cache check (use location+prefs as key)
+    key = f"{location}||{prefs}"
+    cache = _load_generated_cache()
+    if key in cache:
+        return cache[key]
+
+    if not llm_model:
+        llm_model = _llm()
+
+    # Compose a strict JSON-output prompt
+    prompt = (
+        "You are a helpful travel assistant. The user asked for activities near a location.\n"
+        "Return ONLY a JSON array of objects. Each object should be:\n"
+        '{"date_offset": number (0 means first trip day), "time_of_day": "morning|noon|evening|night", '
+        '"title": string, "why": string, "source_hint": string, "price_level":"low|medium|high"}\n\n'
+        "Constraints:\n"
+        "- Provide at least items_per_day * num_days suggestions (but it's okay if you return more). "
+        "- Prefer items that could plausibly exist in or near the given location. If unsure, mark source_hint='local knowledge / estimate'.\n"
+        "- Keep each `why` to one short sentence. Do NOT output narrative outside the JSON.\n\n"
+        f"Location: {location}\nPreferences: {prefs or 'none'}\nnum_days: {num_days}\nitems_per_day: {items_per_day}\n\n"
+        "Output JSON now:"
+    )
+
+    try:
+        from langchain.schema import HumanMessage
+        resp = llm_model.generate([[HumanMessage(content=prompt)]])
+        # try to extract text in several compatible ways
+        gens = getattr(resp, "generations", None)
+        if isinstance(gens, list) and gens:
+            first = gens[0]
+            if isinstance(first, list) and first and hasattr(first[0], "text"):
+                text = first[0].text
+            else:
+                text = str(first[0]) if first else str(resp)
+        else:
+            text = getattr(resp, "llm_output", {}).get("content", "") or str(resp)
+    except Exception:
+        try:
+            text = llm_model.predict(prompt)
+        except Exception:
+            try:
+                res = llm_model([HumanMessage(content=prompt)])
+                text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
+            except Exception:
+                text = ""
+
+    # parse JSON from LLM
+    try:
+        parsed = json.loads(text)
+        # primitive validation: must be a list of dicts
+        if isinstance(parsed, list) and parsed and all(isinstance(p, dict) for p in parsed):
+            # store in cache
+            cache[key] = parsed
+            _save_generated_cache(cache)
+            return parsed
+    except Exception:
+        pass
+
+    # fallback: empty list
+    return []
+# --- END ADD ---
+
+
+
 # === NEW helper: extract top-k sources for provenance ===
 def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     """
