@@ -254,6 +254,57 @@ def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
 #     return retrieve
 
 
+def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI, top_k: int = 12):
+    """
+    Returns a retrieval function that uses a retriever with dynamic k/fetch_k
+    and applies stronger locality filtering: checks tags, full-substring, and token matches.
+    """
+    # make k reasonably large so we have enough chunks for multi-day trips
+    k = max(8, top_k)
+    base_ret = vs.as_retriever(search_type="mmr", search_kwargs={"k": k, "fetch_k": max(64, k*4)})
+    if MultiQueryRetriever is not None:
+        mqr = MultiQueryRetriever.from_llm(retriever=base_ret, llm=llm)
+    else:
+        mqr = None
+
+    def retrieve(query: str):
+        if mqr:
+            docs = mqr.invoke(query)
+        else:
+            docs = base_ret.invoke(query)
+
+        # Location tokens for matching
+        loc_tokens = [l.lower() for l in (locs or []) if l]
+        keep = []
+        fallback = []
+        for d in docs:
+            meta = d.metadata or {}
+            tags = [t.lower() for t in meta.get("tags", [])]
+            txt = (d.page_content or "").lower()
+            src = (meta.get("source") or meta.get("url") or "").lower()
+
+            # strong match if tags or url mention any location token
+            strong = False
+            if any(any(tok in tag for tag in tags) for tok in loc_tokens):
+                strong = True
+            if any(tok in txt for tok in loc_tokens):
+                strong = True
+            if any(tok in src for tok in loc_tokens):
+                strong = True
+
+            if strong:
+                keep.append(d)
+            else:
+                # keep as fallback candidate (national/general pages)
+                fallback.append(d)
+
+        # If we have strong local docs, return them (preserve order)
+        if keep:
+            return keep
+        # otherwise return the original docs to let LLM reason with broader context
+        return docs
+
+    return retrieve
 
 
 def _llm():
