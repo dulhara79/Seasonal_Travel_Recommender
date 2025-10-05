@@ -7,34 +7,14 @@
       "suggestions": [
         {
           "time_of_day": "morning",
-          "title": "Hike to Ella Rock",
-          "why": "Enjoy a scenic hike with the possibility of catching a beautiful sunrise from the summit.",
+          "title": "Jeep Safari & Park Walk at Gal Oya Lodge",
+          "why": "Explore the forgotten Nilagala section of the National Park in an open-top 4x4, searching for wildlife and medicinal plants.",
           "source_hints": [
-            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka",
-            "potentially_nonlocal"
+            "https://www.experiencetravelgroup.com/sri_lanka/off-beaten-track"
           ],
-          "price_level": "low",
+          "price_level": "medium",
           "confidence": 0.8,
-          "warnings": [
-            "suggestion_mentions_other_town"
-          ],
-          "locality_confidence": 0.2,
-          "weather_risk": true,
-          "alternatives": [
-            "Visit a tea factory / factory tour",
-            "Explore a covered local market or museum"
-          ]
-        },
-        {
-          "time_of_day": "noon",
-          "title": "Visit Nine Arch Bridge",
-          "why": "Explore the iconic Nine Arch Bridge after your morning hike to Ella Rock.",
-          "source_hints": [
-            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
-          ],
-          "price_level": "low",
-          "confidence": 0.8,
-          "locality_confidence": 0.2,
+          "locality_confidence": 0.4,
           "weather_risk": true,
           "alternatives": [
             "Visit a museum or cultural center",
@@ -43,33 +23,44 @@
           ]
         },
         {
-          "time_of_day": "evening",
-          "title": "Explore cinnamon peeling on Ganduwa Island",
-          "why": "Learn about Ceylon cinnamon production on Ganduwa Island near Galle.",
+          "time_of_day": "noon",
+          "title": "Visit Galle Fort",
+          "why": "Explore the historic Galle Fort with a local historian, discovering its cultural significance.",
           "source_hints": [
-            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
+            "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle"
+          ],
+          "price_level": "low",
+          "confidence": 1.0,
+          "locality_confidence": 1.0
+        },
+        {
+          "time_of_day": "evening",
+          "title": "Cultural Exploration in Jaffna",
+          "why": "Discover the distinct culture and food scene in the north around the lesser-visited area of Jaffna.",
+          "source_hints": [
+            "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle"
           ],
           "price_level": "low",
           "confidence": 0.8,
-          "locality_confidence": 0.4
+          "locality_confidence": 0.2
         },
         {
           "time_of_day": "night",
-          "title": "Placeholder: Night activity",
-          "why": "No specific night activity suggested for this location and preferences.",
+          "title": "Placeholder: Night Activity",
+          "why": "No specific night activity suggestion available.",
           "source_hints": [],
           "price_level": "low",
-          "confidence": 0.8,
-          "locality_confidence": 0.2
+          "confidence": 0.6,
+          "locality_confidence": 0.0
         }
       ]
     }
   ],
-  "notes": "For more adventure activities, consider checking out the detour mountain towns mentioned in the source.",
+  "notes": "Enjoy a day filled with adventure, cultural exploration, and wildlife encounters in and around Galle, Sri Lanka.",
   "status": "complete",
   "top_sources": [
-    "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka",
-    "https://www.peek.com/sri-lanka/r0arry/tours/tag0eq",
-    "https://beyondwildplaces.com/amazing-things-to-do-in-sri-lanka/"
+    "https://www.experiencetravelgroup.com/sri_lanka/off-beaten-track",
+    "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle",
+    "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
   ]
 }
