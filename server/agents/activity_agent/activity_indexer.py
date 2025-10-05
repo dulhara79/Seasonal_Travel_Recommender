@@ -1179,6 +1179,16 @@ def suggest_activities(inp: dict) -> dict:
                         why = s.get("why", "")
                         s["price_level"] = _estimate_price_level(title, why, docs, user_budget)
 
+                                        # Locality boost / penalty: reduce confidence if suggestion text doesn't appear in any retrieved doc
+                    loc_match = _compute_confidence_for_title(title, docs, k=heuristic_k)
+                    # if loc_match is low, mark as low-confidence
+                    if loc_match < 0.2:
+                        s["confidence"] = min(s["confidence"], 0.6)  # don't let it be too high
+                        s["locality_confidence"] = float(loc_match)
+                    else:
+                        s["locality_confidence"] = float(loc_match)
+
+
                     # Add seasonal/weather-aware alternatives if this looks outdoor AND risk present
                     try:
                         if risk_for_day and _is_outdoor_activity(title, s.get("why", "")):
@@ -1195,24 +1205,86 @@ def suggest_activities(inp: dict) -> dict:
 
         # If the LLM returned but omitted day_plans, synthesize from locations to
         # avoid returning an empty or trivial plan to downstream agents.
-        if not data.get("day_plans"):
-            synthesized = []
-            primary = destination or (locs[0] if locs else "the area")
-            user_budget = _get("budget", None)
+
+        # if not data.get("day_plans"):
+        #     synthesized = []
+        #     primary = destination or (locs[0] if locs else "the area")
+        #     user_budget = _get("budget", None)
+        #     for d in dates:
+        #         fd = d.strftime("%Y-%m-%d")
+        #         suggestions = [
+        #             {
+        #                 "time_of_day": "morning",
+        #                 "title": f"Visit {primary}",
+        #                 "why": f"{primary} is a great morning stop.",
+        #                 "source_hints": top_sources,
+        #                 "confidence": 0.5,
+        #                 "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
+        #             }
+        #         ]
+        #         synthesized.append({"date": fd, "suggestions": suggestions})
+        #     data["day_plans"] = synthesized
+
+                # === guaranteed completeness pass: ensure one entry per date and four slots per day ===
+        try:
+            # produce a map date -> day object for quick lookup
+            existing_days = { (d.get("date") or "").strip(): d for d in data.get("day_plans", []) if isinstance(d, dict) }
+            final_days = []
             for d in dates:
                 fd = d.strftime("%Y-%m-%d")
-                suggestions = [
-                    {
-                        "time_of_day": "morning",
-                        "title": f"Visit {primary}",
-                        "why": f"{primary} is a great morning stop.",
-                        "source_hints": top_sources,
-                        "confidence": 0.5,
-                        "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
-                    }
-                ]
-                synthesized.append({"date": fd, "suggestions": suggestions})
-            data["day_plans"] = synthesized
+                day_obj = existing_days.get(fd)
+                if not day_obj:
+                    # synthesize a day using best-known suggestion titles (try reuse first day's suggestions)
+                    sample = next(iter(existing_days.values()), None)
+                    if sample and sample.get("suggestions"):
+                        # rotate suggestions to create variation
+                        suggestions = []
+                        for s in sample["suggestions"][:4]:
+                            # clone and adapt
+                            cloned = dict(s)
+                            cloned["confidence"] = min(0.9, cloned.get("confidence", 0.6) * 0.9)
+                            # update why to reference the date
+                            cloned["why"] = (cloned.get("why","") + f" (planned for {fd})").strip()
+                            suggestions.append(cloned)
+                    else:
+                        # fallback 4-slot plan
+                        suggestions = [
+                            {"time_of_day":"morning", "title": f"Explore around {destination or 'the area'}", "why":"Good morning activity.", "source_hints": top_sources, "confidence":0.5, "price_level": _estimate_price_level("", "", docs)},
+                            {"time_of_day":"noon", "title": "Local lunch and short indoor stop", "why":"Rest and try local cuisine.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Local lunch","",docs)},
+                            {"time_of_day":"evening", "title": "Sunset viewpoint or market walk", "why":"Golden hour.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Sunset viewpoint","",docs)},
+                            {"time_of_day":"night", "title": "Dinner / cultural show", "why":"Relax and enjoy local cuisine.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Dinner","",docs)}
+                        ]
+                    day_obj = {"date": fd, "suggestions": suggestions}
+                else:
+                    # ensure time_of_day slots exist and fill missing ones
+                    present_tods = { s.get("time_of_day") for s in day_obj.get("suggestions", []) if isinstance(s, dict) and s.get("time_of_day") }
+                    forced_slots = []
+                    for tod in ("morning","noon","evening","night"):
+                        if tod not in present_tods:
+                            forced_slots.append({
+                                "time_of_day": tod,
+                                "title": f"{'Visit' if tod=='morning' else 'Enjoy'} local { 'sights' if tod=='morning' else 'food' } at {destination or 'the area'}",
+                                "why": "Filled placeholder to ensure itinerary completeness.",
+                                "source_hints": top_sources,
+                                "confidence": 0.35,
+                                "price_level": _estimate_price_level("", "", docs)
+                            })
+                    # append forced slots if any
+                    if forced_slots:
+                        day_obj.setdefault("suggestions", []).extend(forced_slots)
+
+                    # ensure suggestions sorted by morning->night order (if they have that key)
+                    def tod_key(s):
+                        order = {"morning":0,"noon":1,"evening":2,"night":3}
+                        return order.get(s.get("time_of_day"), 99)
+                    day_obj["suggestions"] = sorted(day_obj.get("suggestions", []), key=tod_key)
+
+                final_days.append(day_obj)
+
+            data["day_plans"] = final_days
+        except Exception as completeness_exc:
+            print(f"[activity_agent] Day completeness enforcement failed: {completeness_exc}")
+
 
         return data
     except Exception as parse_exc:
