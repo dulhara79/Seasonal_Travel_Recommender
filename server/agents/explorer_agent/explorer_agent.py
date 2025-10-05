@@ -11,6 +11,8 @@ from langchain_core.documents import Document
 # Assuming these are correct imports for your configuration
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.workflow.app_state import TripPlanState
+from server.utils.text_security import sanitize_input
+from server.utils.vector_store import get_vectorstore
 
 LLM_MODEL = OPENAI_MODEL
 
@@ -125,6 +127,51 @@ def explorer_agent_node(state: TripPlanState) -> Dict[str, Any]:
     user_query = state["user_query"]
     current_url = state.get("current_link_url")
     link_content = state.get("current_link_content")
+
+    # === SANITIZE INPUT ===
+    sanitized_query = sanitize_input(user_query)
+    state["user_query"] = sanitized_query  # Update state with sanitized query
+    # ============================
+
+    # --- HANDLE LONG QUERY SCENARIO ---
+    if sanitized_query == "LONG_INPUT_STORED":
+        print("--- NODE: Explorer Agent Executing (Vector Store RAG) ---")
+        try:
+            # 1. Retrieve relevant chunks from the vector store
+            vectorstore = get_vectorstore()
+            # The original user_query (now sanitized but long) is what we search for
+            docs = vectorstore.similarity_search(user_query, k=4)
+
+            # 2. Use a standard RAG chain (similar to run_explorer_rag but without scraping)
+            # This requires creating a dedicated RAG chain or modifying run_explorer_rag
+            # to accept Documents directly. We'll use a placeholder logic:
+
+            from langchain_openai import ChatOpenAI
+            from langchain.chains import create_stuff_documents_chain, create_retrieval_chain
+            from langchain_core.prompts import ChatPromptTemplate
+
+            llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
+
+            rag_prompt = ChatPromptTemplate.from_messages([
+                ("system",
+                 "You are an expert travel assistant. Based *only* on the context provided, answer the user's query and generate a comprehensive response. Context: {context}"),
+                ("human", "{input}"),
+            ])
+
+            # Simulating RAG response generation for the stored context
+            retriever = vectorstore.as_retriever()
+            retrieval_chain = create_retrieval_chain(retriever, create_stuff_documents_chain(llm, rag_prompt))
+
+            # Note: We use the *original* user_query here to get the full context of the question
+            result = retrieval_chain.invoke({"input": user_query})
+
+            state["final_response"] = result["answer"]
+            return state
+        except Exception as e:
+            print(f"ERROR: Failed RAG on long input. {e}")
+            state[
+                "final_response"] = "Sorry, I had trouble analyzing the long text you provided. Could you summarize your core question?"
+            return state
 
     # 1. Check for a new URL in the current query
     new_url, question = extract_url_and_question(user_query)

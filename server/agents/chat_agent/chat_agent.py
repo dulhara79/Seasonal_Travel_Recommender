@@ -2,6 +2,7 @@ import os
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
+from server.utils.text_security import sanitize_input
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 
 # Current Date for temporal grounding
@@ -220,26 +221,30 @@ def chat_agent_node(state: dict) -> dict:
     chat_chain = create_chat_agent_chain()
     user_query = state["user_query"]
 
-    # Simple agents often only need the last query,
-    # but a true chat agent needs the full history (state["chat_history"])
+    # === NEW: SANITIZE INPUT ===
+    friendly_response = ""
+    sanitized_query = sanitize_input(user_query)
 
-    # We'll simulate a simple chat agent for routing here:
-    response = chat_chain.invoke({
-        "user_query": user_query,
-        "chat_history": state.get("chat_history", [])
-    })
+    # If the input was too long, the Decision Agent *should* have routed it elsewhere.
+    # But if it ends up here, provide a friendly fail/redirect.
+    if sanitized_query == "LONG_INPUT_STORED":
+        friendly_response = "That seems like a long amount of text! To answer questions based on a large document or link, please start with 'explore this link' or 'summarize this document'."
+    else:
+        # If input is clean, use it for the LLM
+        response = chat_chain.invoke({
+            "user_query": sanitized_query,
+            "chat_history": state.get("chat_history", [])
+        })
+        friendly_response = response.content
 
-    print(f"DEBUG: Chat Agent Raw Model Response: {response}")
+        # --- Sanitize festival/region-sensitive replies ---
+        friendly_response = sanitize_festival_recommendations(friendly_response, sanitized_query)
 
-    friendly_response = response.content
+        # Update the conversation history (use the original query for clarity in history)
+        state["chat_history"].append(("human", user_query))
 
-    # --- Sanitize festival/region-sensitive replies ---
-    friendly_response = sanitize_festival_recommendations(friendly_response, user_query)
-
-    # Update the conversation history
-    state["chat_history"].append(("human", user_query))
+        # If long input, we only add the AI's response
     state["chat_history"].append(("ai", friendly_response))
-
     state["final_summary"] = friendly_response
 
     return state

@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from sympy.physics.units import temperature
 
 from server.schemas.decision_agent_schema import AgentRouteDecision
+from server.utils.text_security import sanitize_input
 from server.utils.config import GEMINI_API_KEY, GEMINI_MODEL
 
 system_prompt = """
@@ -47,6 +48,18 @@ def create_decision_agent():
 def decision_agent_node(state: dict) -> dict:
     decision_chain=create_decision_agent()
     user_query=state["user_query"]
+
+    sanitized_query = sanitize_input(user_query)
+
+    # If the input was too long, route directly to the Explorer Agent (RAG)
+    if sanitized_query == "LONG_INPUT_STORED":
+        print("INFO: Long query detected and stored. Routing to explorer_agent for RAG.")
+        # NOTE: We keep the original 'user_query' in state for the RAG chain to use
+        # (as it now knows where to look for the chunks via the vector store)
+        state["intent"] = "explorer_agent"
+        return state
+
+    state["user_query"] = sanitized_query
 
     response=decision_chain.invoke({"user_query": user_query})
 

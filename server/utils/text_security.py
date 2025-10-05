@@ -2,7 +2,7 @@ import re
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import Optional
 
-from server.agents.orchestrator_agent.vector_store import add_texts_to_vectorstore
+from server.utils.vector_store import add_texts_to_vectorstore
 
 # Character limit (2000 chars max)
 SAFE_TEXT_PATTERNS = re.compile(r"^[\s\S]{0,2000}$")

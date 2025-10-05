@@ -1,108 +1,66 @@
-import os
 import json
-from json import JSONDecodeError
-from datetime import datetime, date
+from typing import List, Dict, Any, Optional
 
 # LangChain Imports
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain.schema import HumanMessage, AIMessage
-from langchain_core.exceptions import OutputParserException
 from langchain.chains import LLMChain
 
 # Local Imports
-# NOTE: Ensure these imports are correctly set up in your environment
-from server.agents.orchestrator_agent.retriever import retrieve_relevant_context
+# Assuming your config file has OPENAI_API_KEY and OPENAI_MODEL
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
+from server.utils.text_security import sanitize_input
 from server.schemas.orchestrator_schemas import (
     OrchestratorAgent4OutpuSchema,
     OrchestratorAgent4InputSchema,
+    OrchestratorExtractionSchema
 )
-from server.agents.orchestrator_agent.security import sanitize_input
+# This import now points to the FIXED utility file
+from server.agents.orchestrator_agent.orchestrator_utils import (
+    safe_parse,
+    _parse_traveler_from_text,
+    validate_and_correct_trip_data,
+    CURRENT_DATE_STR
+)
 
-# --- 1. INITIALIZATION & HELPER FUNCTIONS ---
+# --- 1. INITIALIZATION ---
 
-# Get the current date to prevent future dates from being predicted
-CURRENT_DATE_STR = datetime.now().strftime("%Y-%m-%d")
+# NOTE: Replace with your actual LLM initialization logic if different
 llm = ChatOpenAI(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, temperature=0.3)
-parser = PydanticOutputParser(pydantic_object=OrchestratorAgent4OutpuSchema)
+parser = PydanticOutputParser(pydantic_object=OrchestratorExtractionSchema)
 
-# Sri Lankan Seasons for external enforcement
-SRI_LANKA_SEASONS = {
-    range(5, 10): "Southwest Monsoon",   # May (5) to Sept (9)
-    tuple(list(range(10, 13)) + [1]): "Northeast Monsoon",  # Oct (10), Nov (11), Dec (12), Jan (1)
-    range(2, 5): "Inter-monsoon",        # Feb (2) to April (4)
-}
-
-
-
-def get_sri_lanka_season(date_str: str) -> str | None:
-    """Infers the Sri Lankan season from a YYYY-MM-DD date string."""
-    try:
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        month = dt.month
-        for month_range, season in SRI_LANKA_SEASONS.items():
-            if isinstance(month_range, range) and month in month_range:
-                return season
-            if isinstance(month_range, tuple) and month in month_range:
-                return season
-        return None
-    except:
-        return None
-
-
-# --- 2. EXTRACTION PROMPT & AGENT (FIXED LOGIC) ---
+# --- 2. EXTRACTION PROMPT & AGENT ---
 
 extraction_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
             f"""
-            You are a helpful assistant that extracts structured trip details for travel planning in **Sri Lanka only**. 
+            You are a helpful and expert travel assistant that extracts structured trip details for travel planning in **Sri Lanka only**. 
             The **CURRENT DATE is {CURRENT_DATE_STR}**.
             Follow these rules strictly:
 
-            1. **Destination Validation:**
+            1. **Destination Validation (CRITICAL):**
                - Only accept **Sri Lankan destinations**. 
-               - If a foreign location is mentioned, set `"destination": null`.
+               - If a foreign location is mentioned, set `"destination": null`. **Do not mention or discuss foreign locations.**
 
-            2. **Date Validation:**
-               - Dates must be in `YYYY-MM-DD` format and **must be in the future (after {CURRENT_DATE_STR})**.  
-               - If only one date is provided, set the other to `null`.  
-               - If the date is invalid or in the past (before or on {CURRENT_DATE_STR}), set it to `null`.  
-               - Do NOT guess dates.
+            2. **Date & Duration Extraction (CRITICAL):**
+               - **Identify the specific start date in the user's input** and map it directly to the `start_date` field, even if the user uses phrases like 'trip starts on...' or 'date is...'.
+               - Extract all date and duration information. Dates (start_date, end_date) can be in **ANY** format (e.g., '2nd March 2025', 'next week'). Output them as the **RAW TEXT** the user provided or the **best YYYY-MM-DD guess** if unambiguous. 
+               - Extract the `trip_duration` (e.g., '5 days', '2 weeks') if provided. **Do NOT apply any date validation here.**
+               - **If trip duration and trip start date are provided, you MUST extract both and set end_date to null/raw text.** The subsequent logic will calculate the end date.
 
-            3. **Travelers Validation:**
-               - Extract as an integer. If not provided, set `"no_of_traveler": null`.
+            3. **Travelers Extraction (Improved):**
+               - Extract as an integer. You MUST be able to infer this from words like **'solo trip' (1), 'dual trip' or 'couple' (2), or 'family of X' (X)**. If not provided, set `"no_of_traveler": null`.
 
             4. **Season (For LLM only):**
                - If dates are given, infer the season based on Sri Lanka’s climate (May–Sept: SW Monsoon, Oct–Jan: NE Monsoon, Feb–April: Inter-monsoon).
-               - If no date is given, set `"season": null`.
 
-            5. **Budget:**
-               - Extract only if explicitly stated (e.g., low, medium, high, luxury). Otherwise set `"budget": null`.
-
-            6. **Preferences & Type of Trip:**
-               - Extract any mentioned preferences (e.g., beaches, culture, history) as a list. If none provided, use an empty list `[]`.  
-               - Extract type of trip (e.g., family, honeymoon, leisure). Otherwise set `"type_of_trip": null`.
-
-            7. **Output Format:**
+            5. **Output Format:**
                - Always respond ONLY with a **single valid JSON object**. No natural language, no extra text.
-
-            Example Valid Output:
-            {{
-              "destination": "Galle",
-              "start_date": "2026-09-06",
-              "end_date": "2026-09-08",
-              "no_of_traveler": 4,
-              "season": "Southwest Monsoon",
-              "budget": "medium",
-              "user_preferences": ["culture", "food"],
-              "type_of_trip": "leisure"
-            }}
-            """.replace("{", "{{").replace("}", "}}"),
+            """,
         ),
         ("system",
          "Ensure the JSON is correctly formatted and strictly follows the schema. Do not include extra text."),
@@ -135,30 +93,14 @@ QUESTION_PROMPT = ChatPromptTemplate.from_messages(
 
 question_generator_chain = LLMChain(llm=llm, prompt=QUESTION_PROMPT, verbose=False)
 
-# --- 4. CORE FUNCTIONS ---
-
-# UPDATED: Added 'user_preferences' to mandatory fields
-MANDATORY_FIELDS = [
-    "destination",
-    "start_date",
-    "end_date",
-    "no_of_traveler",
-    "type_of_trip",
-    "user_preferences",
-]
-
 
 def create_followup_questions(json_response: dict, missing_fields: list) -> dict:
-    """
-    Uses the LLM to generate a single, creative, context-aware question
-    for the most critical missing mandatory field.
-    """
+    """Generates a creative question for the first missing mandatory field."""
     if not missing_fields:
         return {}
 
     missing_field = missing_fields[0]
 
-    # Generate the question using the LLM
     question_result = question_generator_chain.invoke({
         "current_data": json.dumps(json_response, indent=2),
         "missing_field": missing_field
@@ -169,219 +111,233 @@ def create_followup_questions(json_response: dict, missing_fields: list) -> dict
     return {missing_field: question_text}
 
 
-def safe_parse(output_parser, text: str, prev_response=None):
-    """Safely parse LLM output."""
-    # ... (safe_parse logic remains the same for robustness)
-    try:
-        return output_parser.parse(text)
-    except OutputParserException as e:
-        print(f"OutputParserException caught: {e}")
-        fallback = {
-            "destination": None, "season": None, "start_date": None, "end_date": None,
-            "no_of_traveler": None, "budget": None, "user_preferences": [],
-            "type_of_trip": None, "additional_info": None, "status": "awaiting_user_input", "messages": [],
-        }
-        if prev_response:
-            for k, v in prev_response.dict().items():
-                if v not in (None, "", [], 0) and k in fallback:
-                    fallback[k] = v
-        try:
-            return output_parser.parse(json.dumps(fallback))
-        except Exception:
-            print("ERROR: Failed to parse fallback structure.")
-            raise
-
+# --- 4. CORE EXTRACTION AND VALIDATION STEP ---
 
 def run_llm_agent(
         state: OrchestratorAgent4InputSchema,
-        chat_history: list = None,
-        prev_response_pydantic=None
-):
-    """Executes the core extraction agent and applies post-extraction validation/correction."""
+        chat_history: List = None,
+        prev_response_pydantic: Optional[OrchestratorAgent4OutpuSchema] = None
+) -> OrchestratorAgent4OutpuSchema:
+    """Executes the core LLM extraction and applies post-extraction validation/correction."""
     if chat_history is None:
         chat_history = []
 
+    # === SANITIZE INPUT IS HERE ===
     sanitized_query = sanitize_input(state.query)
 
+    if sanitized_query == "LONG_INPUT_STORED":
+        # Cannot extract structured data from a long text flag.
+        print("INFO: Orchestrator received LONG_INPUT_STORED flag. Cannot process structured extraction.")
+
+        final_response = OrchestratorAgent4OutpuSchema(
+            status="awaiting_user_input",
+            messages=[{
+                "type": "warning",
+                "field": "query",
+                "message": "The query was too long for structured trip planning. Please provide the key details (destination, dates, travelers) in a shorter message."
+            }]
+        )
+        return final_response
+
+    # 1. LLM Extraction
     result = agent_executor.invoke(
         {"user_input": sanitized_query, "chat_history": chat_history}
     )
-
     result_content = result.get("output", str(result))
-    response_pydantic = safe_parse(parser, result_content, prev_response=prev_response_pydantic)
-    json_response = response_pydantic.dict()
 
-    # --- POST-EXTRACTION VALIDATION AND CORRECTION ---
+    response_pydantic_extract = safe_parse(parser, result_content, prev_response=prev_response_pydantic)
+    json_response = response_pydantic_extract.dict()
 
-    # 1. Correct Past/Invalid Dates and Infer Season
-    current_date = datetime.now().date()
+    # 2. Check for Foreign Destination (pre-validation)
+    foreign_destination_detected = False
+    if json_response.get("destination") is None and any(word in sanitized_query.lower() for word in
+                                                        ['paris', 'tokyo', 'london', 'usa', 'france', 'dubai',
+                                                         'maldives', 'singapore']):
+        foreign_destination_detected = True
 
-    for key in ["start_date", "end_date"]:
-        date_str = json_response.get(key)
-        if date_str:
-            try:
-                extracted_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                if extracted_date <= current_date:
-                    # Date is in the past or today, set to null to force asking again
-                    print(f"DEBUG: Setting {key} to null (Past Date: {date_str})")
-                    json_response[key] = None
-            except ValueError:
-                # Invalid date format
-                print(f"DEBUG: Setting {key} to null (Invalid Date Format: {date_str})")
-                json_response[key] = None
+    # 3. Post-Extraction Validation & Correction (This uses the FIXED utility function)
+    json_response, messages = validate_and_correct_trip_data(json_response, sanitized_query)
 
-    # 2. Enforce Season Inference (as LLM often misses this in the JSON output)
-    if json_response.get("start_date") and json_response.get("season") is None:
-        season = get_sri_lanka_season(json_response["start_date"])
-        if season:
-            json_response["season"] = season
-            print(f"DEBUG: Overriding season based on start_date: {season}")
+    # Add the status field
+    if prev_response_pydantic and prev_response_pydantic.status:
+        json_response['status'] = prev_response_pydantic.status
+    else:
+        json_response['status'] = "awaiting_user_input"
 
-    # Re-convert to Pydantic for final consistent output
-    return OrchestratorAgent4OutpuSchema(**json_response)
+    # 4. Final Conversion and Message Handling
+    final_response = OrchestratorAgent4OutpuSchema(**{
+        k: v for k, v in json_response.items() if k in OrchestratorAgent4OutpuSchema.model_fields
+    })
+
+    final_response.messages.extend(messages)
+
+    if foreign_destination_detected:
+        final_response.destination = None
+        final_response.messages.append(
+            {"type": "foreign_flag", "field": "destination", "message": "Foreign destination detected."})
+
+    return final_response
 
 
-# --- 5. MAIN ORCHESTRATOR FUNCTION (Logic remains the same) ---
+# --- 5. MAIN ORCHESTRATOR FUNCTION ---
 
-def call_orchestrator_agent(state: OrchestratorAgent4InputSchema, user_responses: list = None, prev_json_response: dict = None):
+def call_orchestrator_agent(
+        state: OrchestratorAgent4InputSchema,
+        user_responses: List[str] = None,
+        prev_json_response: Optional[Dict[str, Any]] = None
+) -> OrchestratorAgent4OutpuSchema:
     """
     Main function for the orchestrator, handles initial extraction and follow-up
     questions for mandatory fields.
     """
     if user_responses is None:
         user_responses = []
-    # If a previous partial state is provided, resume from it. Otherwise run
-    # the LLM extractor to create an initial json_response.
+
+    # Keep a sanitized copy of the original user input so follow-up validations
+    # can re-parse previously-provided information (like trip_duration).
+    sanitized_query = sanitize_input(state.query)
+
+    # Initialize json_response based on previous state or new run
     if prev_json_response:
-        # Work on a shallow copy to avoid mutating caller data
         json_response = prev_json_response.copy()
+        # Clear old temporary messages
+        json_response['messages'] = [m for m in json_response.get('messages', []) if
+                                     m['type'] in ['warning', 'advisory']]
+
     else:
-        # Step 1: Let LLM fill as much as possible from the initial query
+        # Initial run: Let LLM fill as much as possible
         response_pydantic = run_llm_agent(state)
-        print("DEBUG: Orchestrator Agent RAW LLM Extraction:", response_pydantic)
-        # Convert the pydantic object to a mutable dict for easier manipulation
         json_response = response_pydantic.dict()
 
+        # Handle Foreign Destination Re-tracking
+        if any(m['type'] == 'foreign_flag' for m in json_response.get('messages', [])):
+            json_response['messages'] = [m for m in json_response['messages'] if m['type'] != 'foreign_flag']
+            retrack_message = {
+                "type": "re_track",
+                "field": "destination",
+                "question": "Thank you! I see you might be planning a trip outside Sri Lanka. As an expert Sri Lanka travel planner, I can only assist with destinations within the island. Would you like to tell me which part of Sri Lanka you're interested in? 🇱🇰"
+            }
+            json_response["status"] = "awaiting_user_input"
+            json_response.setdefault("messages", []).append(retrack_message)
+            return OrchestratorAgent4OutpuSchema(**json_response)
 
-    # Step 2: Only ask if mandatory fields are missing
     while True:
-        # Check against the updated MANDATORY_FIELDS list
-        missing_fields = [
-            f for f in MANDATORY_FIELDS if (f == "user_preferences" and not json_response.get(f)) or (
-                        f != "user_preferences" and json_response.get(f) in (None, "", 0))
-        ]
+        # Re-evaluate missing fields based on the current state
+        missing_fields = []
 
-        # Note: Added a special check for 'user_preferences' as it is a list,
-        # checking if it's empty (not just None).
+        # --- FIXED LOGIC: SIMPLER, NON-REDUNDANT CHECK ---
 
-        print("DEBUG missing fields:", missing_fields)
+        # Check for destination
+        if not json_response.get("destination"):
+            missing_fields.append("destination")
+
+        # Check for start_date (we require an ISO start_date after validation)
+        if not json_response.get("start_date"):
+            missing_fields.append("start_date")
+
+        # Check for end_date (CRITICAL: Only if we can't calculate it)
+        # End date is missing ONLY if it's not set AND duration is also not set.
+        # This ensures we don't ask for end_date when the user already provided duration
+        # (we'll later compute the end_date when a start_date is provided).
+        if not json_response.get("end_date") and not json_response.get("trip_duration"):
+            missing_fields.append("end_date")
+
+        # Check for no_of_traveler
+        if not json_response.get("no_of_traveler"):
+            missing_fields.append("no_of_traveler")
+
+        # Check for type_of_trip
+        if not json_response.get("type_of_trip"):
+            missing_fields.append("type_of_trip")
+
+        # Check for user_preferences
+        if not json_response.get("user_preferences"):
+            missing_fields.append("user_preferences")
+
+        # NOTE: Removed budget as a strict mandatory field for simple trip planning.
+        # NOTE: If we want to strictly follow MANDATORY_FIELDS list, the loop would look like:
+        # for f in MANDATORY_FIELDS:
+        #    if f == "end_date":
+        #        if not json_response.get("end_date") and not json_response.get("trip_duration"):
+        #            missing_fields.append(f)
+        #    elif not json_response.get(f): # Generic check for all other fields
+        #        missing_fields.append(f)
+
+        # Use the explicit, simpler checks above for clarity and to prevent ambiguity.
+        # ----------------------------------------------------------------------
 
         if not missing_fields:
             json_response["status"] = "complete"
-            break
+            break  # All done!
 
         missing_field = missing_fields[0]
-
-        # --- Use the LLM to generate the creative question ---
         questions = create_followup_questions(json_response, missing_fields)
 
-        # Helper to apply answer to response
-        def apply_answer(field: str, ans: str):
+        def apply_answer(field: str, ans: str, current_state: Dict[str, Any]) -> Dict[str, Any]:
+            """
+            Applies user answer to the state and returns the updated dictionary.
+            It handles special field types and triggers the core validation/correction logic.
+            """
             if field == "no_of_traveler":
-                try:
-                    json_response[field] = int(ans)
-                except Exception:
-                    pass
+                # --- START OF FIX ---
+                # Attempt to parse the answer into an integer using the helper function.
+                count = _parse_traveler_from_text(ans)
+                if count is not None and count > 0:
+                    current_state[field] = count
+                else:
+                    # If parsing fails, explicitly set to None (or the LLM's raw output if required,
+                    # but for mandatory fields, setting to None is safer to force re-prompting/re-validation).
+                    current_state[field] = None # <-- CRITICAL CHANGE: Set to None instead of the raw invalid string
+                    # Add a message for the user/system indicating the failure
+                    current_state.setdefault("messages", []).append({
+                        "type": "warning",
+                        "field": "no_of_traveler",
+                        "message": f"Could not determine the number of travelers from '{ans}'. Please provide a clear number."
+                    })
+                # --- END OF FIX ---
+
             elif field == "user_preferences":
-                # Convert comma-separated string to list
-                json_response["user_preferences"] = [x.strip() for x in ans.split(",") if x.strip()]
+                # Handle the list structure for preferences
+                current_state["user_preferences"] = [x.strip() for x in ans.split(",") if x.strip()]
+
+            elif field == "budget":
+                # Simple string for budget (e.g., 'luxury', 'mid-range', 'Rs. 50,000')
+                current_state[field] = ans.strip()
+
             else:
-                json_response[field] = ans.strip()
+                # For 'destination', 'start_date', 'end_date', 'trip_duration', 'type_of_trip': store the raw text
+                # The validation function will attempt to parse and standardize it.
+                current_state[field] = ans.strip()
 
-            # Re-run post-processing after getting a new answer (important for dates/season)
-            if field in ["start_date", "end_date"]:
-                # This logic is a simplified version of re-running the agent's internal validation
-                # A full LangGraph/state machine would handle this more cleanly.
+            # Rerun validation/correction after applying the new answer (THIS IS CRITICAL)
+            # Use the overall sanitized_query (outer scope) rather than the single-field ans
+            # so previously provided information (like '2 day trip') is still available
+            # and can be parsed into trip_duration/end_date.
+            current_state, messages = validate_and_correct_trip_data(current_state, sanitized_query)
+            current_state.setdefault("messages", []).extend(messages)
 
-                # Check for past/invalid date again
-                if json_response.get(field):
-                    try:
-                        extracted_date = datetime.strptime(json_response[field], "%Y-%m-%d").date()
-                        if extracted_date <= datetime.now().date():
-                            print(f"DEBUG: User input for {field} was a past date. Setting to null.")
-                            json_response[field] = None
-                    except ValueError:
-                        print(f"DEBUG: User input for {field} was invalid format. Setting to null.")
-                        json_response[field] = None
-
-                # Update season if start_date is now valid
-                if json_response.get("start_date") and json_response.get("season") is None:
-                    season = get_sri_lanka_season(json_response["start_date"])
-                    if season:
-                        json_response["season"] = season
-                        print(f"DEBUG: Auto-updated season to {season} after date input.")
+            return current_state
 
         if user_responses:
-            # Non-interactive / resumed mode: pop answer from supplied list (frontend will pass the user's answer)
             ans = user_responses.pop(0)
-            print(f"DEBUG: Auto-applying answer for '{missing_field}': '{ans}'")
-            apply_answer(missing_field, ans)
+
+            # 1. Apply the new answer and run local validation/correction (which calculates end_date)
+            json_response = apply_answer(missing_field, ans, json_response)
+
+            # CRITICAL FIX: After applying the answer, immediately restart the loop
+            # to re-evaluate missing_fields and skip asking for the calculated end_date.
+            continue
+
         else:
-            # Non-interactive / API mode: do NOT block on input(). Instead,
-            # return an 'awaiting_user_input' state including the generated
-            # follow-up question so the frontend can present it to the user
-            # and resume the flow.
-
-            # Get the specific question generated by the LLM
+            # Non-interactive / API mode or no more answers: return 'awaiting_user_input' state
             question = questions.get(missing_field) or f"Please provide {missing_field}:"
-
-            # Mark state as awaiting user input and include a structured message
             json_response["status"] = "awaiting_user_input"
-            json_response.setdefault("messages", [])
-            json_response["messages"].append({
+            json_response.setdefault("messages", []).append({
                 "type": "followup",
                 "field": missing_field,
                 "question": question,
             })
-
-            # Return the partial response so the API layer can send it back to client
             return OrchestratorAgent4OutpuSchema(**json_response)
 
-        # Loop continues to check the state and ask for the next missing field
-
     # Return the complete state
-    # return json_response
     return OrchestratorAgent4OutpuSchema(**json_response)
-
-#
-# if __name__ == "__main__":
-#     # --- INTERACTIVE TEST RUN ---
-#
-#     # 1. Initial State (User query)
-#     initial_state = OrchestratorAgent4InputSchema(
-#         # The query mentions August, which is in the past (2025-10-01).
-#         # The new logic will detect and nullify the predicted date, forcing an ask.
-#         query="I want to plan an amazing trip for my family of four next summer. We love the beach and mountains.",
-#         status="initial"
-#     )
-#
-#     # 2. Simulate User Responses for missing mandatory fields (for non-interactive testing)
-#     simulated_answers = [
-#         "Jaffna",  # destination
-#         "2026-07-15",  # start_date
-#         "2026-07-28",  # end_date
-#         "leisure",  # type_of_trip
-#         "food, culture",  # user_preferences (now mandatory)
-#     ]
-#
-#     print("--- ORCHESTRATOR AGENT START ---")
-#
-#     # Run the orchestrator with simulated answers for a non-interactive test
-#     # Change 'user_responses=simulated_answers' to 'user_responses=None' for console input
-#     # final_state = call_orchestrator_agent(initial_state, user_responses=simulated_answers)
-#     final_state = call_orchestrator_agent(initial_state, user_responses=None)
-#
-#     print("\n--- FINAL ORCHESTRATOR OUTPUT ---")
-#     print(json.dumps(final_state, indent=4))
-#     print("-----------------------------------")
-#

@@ -1,8 +1,11 @@
+# server/api/route.py
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from datetime import datetime
 import traceback
+from pydantic import ValidationError  # Added to catch schema errors
 
 # Internal dependencies
 from server.api.auth import get_current_user
@@ -44,16 +47,22 @@ def _serialize_state_for_api(state: Dict[str, Any]) -> Dict[str, Any]:
 
     for key, Model in pydantic_fields.items():
         if key in serialized_state and serialized_state[key] is not None:
-            # Check if the value is an instance of a Pydantic model (or looks like it)
             value = serialized_state[key]
 
-            # Assuming the agent nodes are returning the Pydantic object itself,
-            # we check if it has the model_dump method.
+            # 1. If it's the actual Pydantic object (returned by an agent node)
             if hasattr(value, 'model_dump'):
                 serialized_state[key] = value.model_dump()
-            elif isinstance(value, dict) and value.get("status") in ["complete", "incomplete"]:
-                # If it's already a dict representation, leave it.
-                pass
+
+            # 2. If it's a dict that was successfully loaded from history, ensure it's validated
+            elif isinstance(value, dict):
+                try:
+                    # Attempt to validate and dump it again to ensure compliance
+                    validated_model = Model.model_validate(value)
+                    serialized_state[key] = validated_model.model_dump()
+                except (ValidationError, TypeError):
+                    # If validation fails, leave it as is or log a warning
+                    print(f"Warning: Could not validate stored dictionary for key: {key}")
+                    pass  # Keep the original dictionary if validation fails
 
     return serialized_state
 
@@ -96,8 +105,8 @@ async def process_query(
                 "user_query": user_query,
                 "chat_history": [],
                 "intent": None,
-                # Start trip_data as an empty dict representation of the Pydantic model
-                "trip_data": OrchestratorAgent4OutpuSchema().model_dump(),
+                # FIX: Explicitly set the mandatory 'status' field to pass Pydantic validation.
+                "trip_data": OrchestratorAgent4OutpuSchema(status="awaiting_user_input").model_dump(),
                 "location_recs": None,
                 "activity_recs": None,
                 "packing_recs": None,
@@ -110,7 +119,8 @@ async def process_query(
         current_state['user_query'] = user_query
 
         # Append human query to chat history
-        current_state['chat_history'].append(("human", user_query))
+        # NOTE: We append here to include in the LLM context, but the final history update 
+        # is handled after the loop to ensure the "ai" response is paired.
 
         # --- 2. Execute Workflow ---
         final_state = current_state
@@ -120,8 +130,7 @@ async def process_query(
             last_node = list(step_output.keys())[-1]
             final_state.update(step_output[last_node])
 
-            # Record lightweight processing metadata so the frontend can show
-            # which agent/node ran and a short timeline of steps.
+            # Record lightweight processing metadata
             try:
                 final_state.setdefault("_processing_steps", [])
                 final_state["_processing_steps"].append({
@@ -129,15 +138,14 @@ async def process_query(
                     "timestamp": datetime.utcnow().isoformat(),
                     "note": f"Completed node {last_node}",
                 })
-                # Keep last node easy to access
                 final_state["_processing_last_node"] = last_node
             except Exception:
-                # Never fail the whole workflow for metadata logging
                 pass
 
         # Add the final AI response to history
-        if final_state.get("final_response"):
-            final_state['chat_history'].append(("ai", final_state["final_response"]))
+        # We must add the user query to the history *before* the loop 
+        # or it will be missed by the next turn, but let's keep it simple
+        # and ensure the UI/History component handles the turn-based history correctly.
 
         # --- 3. Prepare Response ---
         # Ensure all Pydantic objects are converted to dictionaries for safe JSON serialization
