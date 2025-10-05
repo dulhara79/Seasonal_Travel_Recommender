@@ -374,97 +374,6 @@ def _format_context(docs, max_chars: int = 2400) -> str:
 
 
 
-
-    # --- ADD THIS: LLM fallback to generate local activities when index lacks local docs ---
-_GENERATED_CACHE = os.path.join(os.path.dirname(INDEX_DIR), "generated_local_cache.json")
-
-def _load_generated_cache():
-    try:
-        if os.path.exists(_GENERATED_CACHE):
-            with open(_GENERATED_CACHE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return {}
-
-def _save_generated_cache(cache: dict):
-    try:
-        os.makedirs(os.path.dirname(_GENERATED_CACHE), exist_ok=True)
-        with open(_GENERATED_CACHE, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-
-def _llm_fetch_local_activities(location: str, prefs: str, num_days: int = 3, items_per_day: int = 4, llm_model=None):
-    """
-    Ask the LLM (ChatOpenAI) to generate structured, local activity suggestions for `location`.
-    Returns a list of dict items with keys: date_offset(0..), time_of_day, title, why, source_hint, price_level.
-    We return *raw suggestions* (not full day_plans), so the normal pipeline can synthesize days from them.
-    """
-    # basic cache check (use location+prefs as key)
-    key = f"{location}||{prefs}"
-    cache = _load_generated_cache()
-    if key in cache:
-        return cache[key]
-
-    if not llm_model:
-        llm_model = _llm()
-
-    # Compose a strict JSON-output prompt
-    prompt = (
-        "You are a helpful travel assistant. The user asked for activities near a location.\n"
-        "Return ONLY a JSON array of objects. Each object should be:\n"
-        '{"date_offset": number (0 means first trip day), "time_of_day": "morning|noon|evening|night", '
-        '"title": string, "why": string, "source_hint": string, "price_level":"low|medium|high"}\n\n'
-        "Constraints:\n"
-        "- Provide at least items_per_day * num_days suggestions (but it's okay if you return more). "
-        "- Prefer items that could plausibly exist in or near the given location. If unsure, mark source_hint='local knowledge / estimate'.\n"
-        "- Keep each `why` to one short sentence. Do NOT output narrative outside the JSON.\n\n"
-        f"Location: {location}\nPreferences: {prefs or 'none'}\nnum_days: {num_days}\nitems_per_day: {items_per_day}\n\n"
-        "Output JSON now:"
-    )
-
-    try:
-        from langchain.schema import HumanMessage
-        resp = llm_model.generate([[HumanMessage(content=prompt)]])
-        # try to extract text in several compatible ways
-        gens = getattr(resp, "generations", None)
-        if isinstance(gens, list) and gens:
-            first = gens[0]
-            if isinstance(first, list) and first and hasattr(first[0], "text"):
-                text = first[0].text
-            else:
-                text = str(first[0]) if first else str(resp)
-        else:
-            text = getattr(resp, "llm_output", {}).get("content", "") or str(resp)
-    except Exception:
-        try:
-            text = llm_model.predict(prompt)
-        except Exception:
-            try:
-                res = llm_model([HumanMessage(content=prompt)])
-                text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
-            except Exception:
-                text = ""
-
-    # parse JSON from LLM
-    try:
-        parsed = json.loads(text)
-        # primitive validation: must be a list of dicts
-        if isinstance(parsed, list) and parsed and all(isinstance(p, dict) for p in parsed):
-            # store in cache
-            cache[key] = parsed
-            _save_generated_cache(cache)
-            return parsed
-    except Exception:
-        pass
-
-    # fallback: empty list
-    return []
-# --- END ADD ---
-
-
-
 # === NEW helper: extract top-k sources for provenance ===
 def _extract_top_sources(docs: List, k: int = 3) -> List[str]:
     """
@@ -620,13 +529,113 @@ def _suggest_alternatives_for_activity(title: str) -> List[str]:
 
 
 
+# --- Add these helpers near other helpers in the file ---
+
+_GENERATED_CACHE = os.path.join(os.path.dirname(INDEX_DIR), "generated_local_cache.json")
+
+def _load_generated_cache():
+    try:
+        if os.path.exists(_GENERATED_CACHE):
+            with open(_GENERATED_CACHE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_generated_cache(cache: dict):
+    try:
+        os.makedirs(os.path.dirname(_GENERATED_CACHE), exist_ok=True)
+        with open(_GENERATED_CACHE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def _llm_fetch_local_activities(location: str, prefs: str, num_days: int = 3, items_per_day: int = 4, llm_model=None):
+    """
+    Ask the LLM to generate structured local activity suggestions for `location`.
+    Returns a list of suggestion dicts (each with date_offset, time_of_day, title, why, source_hint, price_level).
+    Caches results in generated_local_cache.json to avoid repeated token costs.
+    """
+    key = f"{location}||{prefs}||{num_days}||{items_per_day}"
+    cache = _load_generated_cache()
+    if key in cache:
+        return cache[key]
+
+    if not llm_model:
+        llm_model = _llm()
+
+    prompt = (
+        "You are a helpful travel assistant. The user asked for activities near a location.\n"
+        "Return ONLY a JSON array of objects. Each object should have the keys:\n"
+        "  date_offset (integer, 0 means first trip day),\n"
+        "  time_of_day (one of morning|noon|evening|night),\n"
+        "  title (string),\n"
+        "  why (one short sentence),\n"
+        "  source_hint (string),\n"
+        "  price_level (one of low|medium|high)\n\n"
+        "Constraints:\n"
+        f"- Provide roughly {items_per_day * num_days} items spread across offsets 0..{num_days-1}.\n"
+        "- If you are unsure of exact local facts, set source_hint to 'local knowledge / estimate'.\n"
+        "- Keep 'why' to one short sentence. Do NOT output narrative outside the JSON.\n\n"
+        f"Location: {location}\nPreferences: {prefs or 'none'}\nnum_days: {num_days}\nitems_per_day: {items_per_day}\n\n"
+        "Output JSON now:"
+    )
+
+    text = ""
+    try:
+        from langchain.schema import HumanMessage
+        resp = llm_model.generate([[HumanMessage(content=prompt)]])
+        gens = getattr(resp, "generations", None)
+        if isinstance(gens, list) and gens:
+            first = gens[0]
+            if isinstance(first, list) and first and hasattr(first[0], "text"):
+                text = first[0].text
+            else:
+                text = str(first[0]) if first else str(resp)
+        else:
+            text = getattr(resp, "llm_output", {}).get("content", "") or str(resp)
+    except Exception:
+        try:
+            text = llm_model.predict(prompt)
+        except Exception:
+            try:
+                from langchain.schema import HumanMessage
+                res = llm_model([HumanMessage(content=prompt)])
+                text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
+            except Exception:
+                text = ""
+
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list) and all(isinstance(p, dict) for p in parsed):
+            cache[key] = parsed
+            _save_generated_cache(cache)
+            return parsed
+    except Exception:
+        # Try to salvage if LLM wrapped JSON in markdown code fences
+        try:
+            cleaned = text.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("```", 2)[-1]
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, list):
+                cache[key] = parsed
+                _save_generated_cache(cache)
+                return parsed
+        except Exception:
+            pass
+
+    return []
+
+
+# --- Replace (or paste over) your current suggest_activities with this corrected function ---
+
 def suggest_activities(inp: dict) -> dict:
     """
     High-level entry point your orchestrator can call.
     Accepts either a dict or a pydantic-like object.
     Returns a dict matching the JSON shape expected by the orchestrator.
     """
-
     print(f"\nDEBUG: suggest_activities called with inp={inp}")
 
     # Ensure index + vectorstore available
@@ -660,20 +669,15 @@ def suggest_activities(inp: dict) -> dict:
         start = datetime.today()
         end = start
     dates = _date_range(start, end)
-
-    #######CHANGE STARTS HERE#######
-
-    # Dates parsing already done above (dates variable)
     num_days = max(1, len(dates))
 
     # Build retriever context with dynamic top_k depending on trip length
     locs = _expand_locations(destination, suggest_locations)
-    # ask for more docs when the trip is longer; cap to avoid huge fetches
     desired_docs = max(12, num_days * 8)
-    desired_docs = min(desired_docs, 200)  # cap, tune as needed
+    desired_docs = min(desired_docs, 200)  # cap
     retriever = _retriever_for_location(vs, locs, llm, top_k=desired_docs)
 
-    # Build a compact query (same logic you had originally)
+    # Build query
     blocks = [
         f"Activities in/near {destination}" if destination else "Activities",
         f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
@@ -684,15 +688,22 @@ def suggest_activities(inp: dict) -> dict:
     query = " | ".join(blocks)
 
     # Retrieve docs (chunks) using dynamic fetch size
+    docs = []
     try:
-        # retriever may be either a callable function (our wrapper) or an object
         if callable(retriever):
-            docs = retriever(query)
-
+            docs = retriever(query) or []
+        else:
+            get_docs = getattr(retriever, "get_relevant_documents", None)
+            if callable(get_docs):
+                docs = get_docs(query) or []
+            else:
+                docs = getattr(retriever, "retrieve", lambda q: [])(query) or []
+    except Exception as e:
+        print(f"[activity_agent] Retriever failed: {e}")
+        docs = []
 
     # --- LLM fallback if index lacks local evidence ---
     try:
-        # count local hits conservatively: check if destination tokens appear in doc text or source
         loc_tokens = [l.lower() for l in (locs or []) if l]
         local_hits = 0
         for d in docs:
@@ -700,42 +711,23 @@ def suggest_activities(inp: dict) -> dict:
             if any(tok in txt for tok in loc_tokens):
                 local_hits += 1
 
-        # If not enough local docs, call LLM to generate local activities and prepend them as synthetic docs.
         if local_hits < 2 and destination:
-            # fetch generated local suggestions
             gen_items = _llm_fetch_local_activities(destination, prefs, num_days=num_days, items_per_day=4, llm_model=llm)
             if gen_items:
-                # convert generated items to fake Document-like objs to give LLM context later
                 class _SimpleDoc:
                     def __init__(self, content, meta):
                         self.page_content = content
                         self.metadata = meta
                 synth_docs = []
-                for i, gi in enumerate(gen_items):
+                for gi in gen_items:
                     content = json.dumps(gi, ensure_ascii=False)
                     meta = {"source": "llm_generated", "tags": [destination.lower()]}
                     synth_docs.append(_SimpleDoc(content, meta))
                 # Prepend synthetic docs so they are used as context by the main LLM prompt
-                docs = synth_docs + (docs or [])
+                docs = synth_docs + docs
     except Exception as e:
         print(f"[activity_agent] LLM fallback generation failed: {e}")
     # --- end fallback ---
-
-
-
-        else:
-            # try common retriever API
-            get_docs = getattr(retriever, "get_relevant_documents", None)
-            if callable(get_docs):
-                docs = get_docs(query)
-            else:
-                # last resort: try `retrieve` method
-                docs = getattr(retriever, "retrieve", lambda q: [])(query)
-    except Exception as e:
-        print(f"[activity_agent] Retriever failed: {e}")
-        docs = []
-
-    #######CHANGE ENDS HERE#######
 
     # Format context for LLM and extract provenance/top sources
     context = _format_context(docs)
@@ -745,16 +737,13 @@ def suggest_activities(inp: dict) -> dict:
     try:
         trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
     except Exception:
-        # fallback to simple dict -> json
         trip_json = json.dumps(inp if isinstance(inp, dict) else str(inp), indent=2, ensure_ascii=False)
 
     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
-    # Optionally append a short provenance hint for the LLM
     if top_sources:
         prompt_text += "\n\nTop sources used (for provenance):\n" + "\n".join(top_sources)
 
     print(f"[activity_agent] Calling LLM with prompt (truncated)...")
-    # LLM call (attempt multiple variants for compatibility)
     from langchain.schema import HumanMessage
 
     text = ""
@@ -770,7 +759,6 @@ def suggest_activities(inp: dict) -> dict:
         else:
             text = getattr(response, "llm_output", {}).get("content", "") or str(response)
     except Exception as e:
-        # fallbacks
         try:
             text = llm.predict(prompt_text)
         except Exception:
@@ -787,19 +775,13 @@ def suggest_activities(inp: dict) -> dict:
     # Defensive: if empty or whitespace, skip json.loads and go fallback
     if not isinstance(text, str) or not text.strip():
         logger.error("[activity_agent] LLM returned empty response; using fallback suggestions. Prompt (truncated): %s", prompt_text[:600])
-        # build fallback day_plans using dates (guaranteed defined above)
-        # If we have specific locations (locs) or a destination, synthesize
-        # concrete suggestions from them so downstream agents get useful data.
         day_plans = []
         for d in dates:
             user_budget = _get("budget", None)
             fd = d.strftime("%Y-%m-%d")
-
-            # Build a richer set of suggestions derived from known locations
             suggestions = []
             primary = destination or (locs[0] if locs else "the area")
 
-            # Morning: visit primary point of interest
             suggestions.append({
                 "time_of_day": "morning",
                 "title": f"Visit {primary}",
@@ -808,8 +790,6 @@ def suggest_activities(inp: dict) -> dict:
                 "confidence": 0.5,
                 "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
             })
-
-            # Noon: food or shorter indoor stop (use a nearby location name if available)
             suggestions.append({
                 "time_of_day": "noon",
                 "title": f"Local lunch and short indoor stop near {primary}",
@@ -818,8 +798,6 @@ def suggest_activities(inp: dict) -> dict:
                 "confidence": 0.4,
                 "price_level": _estimate_price_level("Local lunch", "Try local stalls or mid-range cafes", docs, user_budget)
             })
-
-            # Evening: sunset/market
             suggestions.append({
                 "time_of_day": "evening",
                 "title": f"Sunset viewpoint or market walk at {primary}",
@@ -828,8 +806,6 @@ def suggest_activities(inp: dict) -> dict:
                 "confidence": 0.4,
                 "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Local atmosphere", docs, user_budget)
             })
-
-            # Night: dinner/cultural show
             suggestions.append({
                 "time_of_day": "night",
                 "title": "Dinner / cultural show",
@@ -839,7 +815,6 @@ def suggest_activities(inp: dict) -> dict:
                 "price_level": _estimate_price_level("Dinner / cultural show", "Local cuisine/culture", docs, user_budget)
             })
 
-            # Add seasonal alternatives for each suggestion if risk present
             try:
                 location_hint = destination or (locs[0] if locs else "")
                 date_obj = datetime.strptime(fd, "%Y-%m-%d")
@@ -853,19 +828,6 @@ def suggest_activities(inp: dict) -> dict:
                 pass
 
             day_plans.append({"date": fd, "suggestions": suggestions})
-            # Add seasonal alternatives for each suggestion if risk present
-            try:
-                # determine a reasonable location hint (destination preferred)
-                location_hint = destination or (locs[0] if locs else "")
-                date_obj = datetime.strptime(fd, "%Y-%m-%d")
-                risk = _seasonal_risk_for_location(location_hint, date_obj)
-                if risk:
-                    for s in day_plans[-1]["suggestions"]:
-                        if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
-                            s["weather_risk"] = True
-                            s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
-            except Exception:
-                pass
 
         return {
             "destination": destination,
@@ -879,28 +841,22 @@ def suggest_activities(inp: dict) -> dict:
     # Try parse JSON from LLM response
     try:
         data = json.loads(text)
-        # Attach status and provenance
         data["status"] = "complete"
-        # add top_sources list into result if not present
         if "top_sources" not in data:
             data["top_sources"] = top_sources
 
-        # Compute and attach confidence per suggestion
+        # Compute and attach confidence per suggestion and locality confidence
         try:
-            # Determine k for heuristic: use up to 5 docs
             heuristic_k = min(5, max(1, len(docs)))
             user_budget = _get("budget", None)
             for day in data.get("day_plans", []):
                 suggestions = day.get("suggestions", [])
-                # parse date for weather checks
                 date_str = day.get("date")
                 try:
                     date_obj = datetime.strptime(date_str, "%Y-%m-%d") if date_str else start
                 except Exception:
                     date_obj = start
-                # choose location hint
                 location_hint = destination or (locs[0] if locs else "")
-                # check risk once per day
                 try:
                     risk_for_day = _seasonal_risk_for_location(location_hint, date_obj)
                 except Exception:
@@ -908,90 +864,52 @@ def suggest_activities(inp: dict) -> dict:
 
                 for s in suggestions:
                     title = s.get("title", "") or ""
-                    # simple heuristic: fraction of top-k docs that mention title tokens
                     heuristic = _compute_confidence_for_title(title, docs, k=heuristic_k)
-                    # For LLM-produced items, ensure a conservative minimum of 0.8
                     confidence = max(heuristic, 0.8)
-                    # clamp between 0 and 1
                     confidence = max(0.0, min(1.0, float(confidence)))
                     s["confidence"] = confidence
-                    # ensure source_hints exists
                     if "source_hints" not in s:
                         s["source_hints"] = top_sources
-                    # ensure price_level exists; if not compute it
                     if "price_level" not in s:
                         why = s.get("why", "")
                         s["price_level"] = _estimate_price_level(title, why, docs, user_budget)
 
-                                        # Locality boost / penalty: reduce confidence if suggestion text doesn't appear in any retrieved doc
                     loc_match = _compute_confidence_for_title(title, docs, k=heuristic_k)
-                    # if loc_match is low, mark as low-confidence
                     if loc_match < 0.2:
-                        s["confidence"] = min(s["confidence"], 0.6)  # don't let it be too high
+                        s["confidence"] = min(s["confidence"], 0.6)
                         s["locality_confidence"] = float(loc_match)
                     else:
                         s["locality_confidence"] = float(loc_match)
 
-
-                    # Add seasonal/weather-aware alternatives if this looks outdoor AND risk present
                     try:
                         if risk_for_day and _is_outdoor_activity(title, s.get("why", "")):
                             s["weather_risk"] = True
                             if "alternatives" not in s or not s["alternatives"]:
                                 s["alternatives"] = _suggest_alternatives_for_activity(title)
                     except Exception:
-                        # never let alternatives logic break main flow
                         pass
         except Exception as ci_e:
             print(f"[activity_agent] Confidence assignment failed: {ci_e}")
 
         print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
 
-        # If the LLM returned but omitted day_plans, synthesize from locations to
-        # avoid returning an empty or trivial plan to downstream agents.
-
-        # if not data.get("day_plans"):
-        #     synthesized = []
-        #     primary = destination or (locs[0] if locs else "the area")
-        #     user_budget = _get("budget", None)
-        #     for d in dates:
-        #         fd = d.strftime("%Y-%m-%d")
-        #         suggestions = [
-        #             {
-        #                 "time_of_day": "morning",
-        #                 "title": f"Visit {primary}",
-        #                 "why": f"{primary} is a great morning stop.",
-        #                 "source_hints": top_sources,
-        #                 "confidence": 0.5,
-        #                 "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
-        #             }
-        #         ]
-        #         synthesized.append({"date": fd, "suggestions": suggestions})
-        #     data["day_plans"] = synthesized
-
-                # === guaranteed completeness pass: ensure one entry per date and four slots per day ===
+        # === guaranteed completeness pass: ensure one entry per date and four slots per day ===
         try:
-            # produce a map date -> day object for quick lookup
             existing_days = { (d.get("date") or "").strip(): d for d in data.get("day_plans", []) if isinstance(d, dict) }
             final_days = []
             for d in dates:
                 fd = d.strftime("%Y-%m-%d")
                 day_obj = existing_days.get(fd)
                 if not day_obj:
-                    # synthesize a day using best-known suggestion titles (try reuse first day's suggestions)
                     sample = next(iter(existing_days.values()), None)
                     if sample and sample.get("suggestions"):
-                        # rotate suggestions to create variation
                         suggestions = []
                         for s in sample["suggestions"][:4]:
-                            # clone and adapt
                             cloned = dict(s)
                             cloned["confidence"] = min(0.9, cloned.get("confidence", 0.6) * 0.9)
-                            # update why to reference the date
                             cloned["why"] = (cloned.get("why","") + f" (planned for {fd})").strip()
                             suggestions.append(cloned)
                     else:
-                        # fallback 4-slot plan
                         suggestions = [
                             {"time_of_day":"morning", "title": f"Explore around {destination or 'the area'}", "why":"Good morning activity.", "source_hints": top_sources, "confidence":0.5, "price_level": _estimate_price_level("", "", docs)},
                             {"time_of_day":"noon", "title": "Local lunch and short indoor stop", "why":"Rest and try local cuisine.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Local lunch","",docs)},
@@ -1000,7 +918,6 @@ def suggest_activities(inp: dict) -> dict:
                         ]
                     day_obj = {"date": fd, "suggestions": suggestions}
                 else:
-                    # ensure time_of_day slots exist and fill missing ones
                     present_tods = { s.get("time_of_day") for s in day_obj.get("suggestions", []) if isinstance(s, dict) and s.get("time_of_day") }
                     forced_slots = []
                     for tod in ("morning","noon","evening","night"):
@@ -1013,11 +930,9 @@ def suggest_activities(inp: dict) -> dict:
                                 "confidence": 0.35,
                                 "price_level": _estimate_price_level("", "", docs)
                             })
-                    # append forced slots if any
                     if forced_slots:
                         day_obj.setdefault("suggestions", []).extend(forced_slots)
 
-                    # ensure suggestions sorted by morning->night order (if they have that key)
                     def tod_key(s):
                         order = {"morning":0,"noon":1,"evening":2,"night":3}
                         return order.get(s.get("time_of_day"), 99)
@@ -1029,8 +944,8 @@ def suggest_activities(inp: dict) -> dict:
         except Exception as completeness_exc:
             print(f"[activity_agent] Day completeness enforcement failed: {completeness_exc}")
 
-
         return data
+
     except Exception as parse_exc:
         logger.error("[activity_agent] Could not parse LLM output as JSON: %s", parse_exc)
         logger.error("[activity_agent] Raw LLM text (truncated): %s", (text or "")[:2000])
@@ -1079,7 +994,6 @@ def suggest_activities(inp: dict) -> dict:
                     },
                 ]
             })
-            # Add seasonal alternatives for this fallback day if risk present
             try:
                 location_hint = destination or (locs[0] if locs else "")
                 date_obj = datetime.strptime(fd, "%Y-%m-%d")
@@ -1100,6 +1014,492 @@ def suggest_activities(inp: dict) -> dict:
             "status": "fallback",
             "top_sources": top_sources
         }
+
+
+
+
+
+
+# def suggest_activities(inp: dict) -> dict:
+#     """
+#     High-level entry point your orchestrator can call.
+#     Accepts either a dict or a pydantic-like object.
+#     Returns a dict matching the JSON shape expected by the orchestrator.
+#     """
+
+#     print(f"\nDEBUG: suggest_activities called with inp={inp}")
+
+#     # Ensure index + vectorstore available
+#     if not os.path.isdir(INDEX_DIR):
+#         print("[activity_agent] Index not found; building now (this may take a few minutes)...")
+#         build_or_refresh_index()
+
+#     vs = _load_vectorstore()
+#     llm = _llm()
+
+#     # Accept either a dict or a pydantic model-like object.
+#     def _get(key, default=None):
+#         try:
+#             if isinstance(inp, dict):
+#                 return inp.get(key, default)
+#             return getattr(inp, key, default)
+#         except Exception:
+#             return default
+
+#     # Safe accessors
+#     destination = (_get("destination", "") or "").strip()
+#     suggest_locations = _get("suggest_locations", []) or []
+#     user_prefs = _get("user_preferences", None) or _get("preferences", None) or []
+#     prefs = ", ".join(user_prefs)
+
+#     # Dates parsing (ensure dates always defined for fallback)
+#     try:
+#         start = datetime.strptime(_get("start_date"), "%Y-%m-%d") if _get("start_date") else datetime.today()
+#         end = datetime.strptime(_get("end_date"), "%Y-%m-%d") if _get("end_date") else start
+#     except Exception:
+#         start = datetime.today()
+#         end = start
+#     dates = _date_range(start, end)
+
+#     #######CHANGE STARTS HERE#######
+
+#     # Dates parsing already done above (dates variable)
+#     num_days = max(1, len(dates))
+
+#     # Build retriever context with dynamic top_k depending on trip length
+#     locs = _expand_locations(destination, suggest_locations)
+#     # ask for more docs when the trip is longer; cap to avoid huge fetches
+#     desired_docs = max(12, num_days * 8)
+#     desired_docs = min(desired_docs, 200)  # cap, tune as needed
+#     retriever = _retriever_for_location(vs, locs, llm, top_k=desired_docs)
+
+#     # Build a compact query (same logic you had originally)
+#     blocks = [
+#         f"Activities in/near {destination}" if destination else "Activities",
+#         f"Best things to do in {destination} for {(_get('type_of_trip') or 'travelers')}",
+#         f"Budget: {_get('budget','any')}; Season: {_get('season','any')}; Preferences: {prefs or 'any'}"
+#     ]
+#     if suggest_locations:
+#         blocks.append("Also consider: " + ", ".join(suggest_locations))
+#     query = " | ".join(blocks)
+
+#     # Retrieve docs (chunks) using dynamic fetch size
+#     try:
+#         # retriever may be either a callable function (our wrapper) or an object
+#         if callable(retriever):
+#             docs = retriever(query)
+
+
+#     # --- LLM fallback if index lacks local evidence ---
+#     try:
+#         # count local hits conservatively: check if destination tokens appear in doc text or source
+#         loc_tokens = [l.lower() for l in (locs or []) if l]
+#         local_hits = 0
+#         for d in docs:
+#             txt = ((d.metadata or {}).get("source", "") + " " + (d.page_content or "")).lower()
+#             if any(tok in txt for tok in loc_tokens):
+#                 local_hits += 1
+
+#         # If not enough local docs, call LLM to generate local activities and prepend them as synthetic docs.
+#         if local_hits < 2 and destination:
+#             # fetch generated local suggestions
+#             gen_items = _llm_fetch_local_activities(destination, prefs, num_days=num_days, items_per_day=4, llm_model=llm)
+#             if gen_items:
+#                 # convert generated items to fake Document-like objs to give LLM context later
+#                 class _SimpleDoc:
+#                     def __init__(self, content, meta):
+#                         self.page_content = content
+#                         self.metadata = meta
+#                 synth_docs = []
+#                 for i, gi in enumerate(gen_items):
+#                     content = json.dumps(gi, ensure_ascii=False)
+#                     meta = {"source": "llm_generated", "tags": [destination.lower()]}
+#                     synth_docs.append(_SimpleDoc(content, meta))
+#                 # Prepend synthetic docs so they are used as context by the main LLM prompt
+#                 docs = synth_docs + (docs or [])
+#     except Exception as e:
+#         print(f"[activity_agent] LLM fallback generation failed: {e}")
+#     # --- end fallback ---
+
+
+
+#         else:
+#             # try common retriever API
+#             get_docs = getattr(retriever, "get_relevant_documents", None)
+#             if callable(get_docs):
+#                 docs = get_docs(query)
+#             else:
+#                 # last resort: try `retrieve` method
+#                 docs = getattr(retriever, "retrieve", lambda q: [])(query)
+#     except Exception as e:
+#         print(f"[activity_agent] Retriever failed: {e}")
+#         docs = []
+
+#     #######CHANGE ENDS HERE#######
+
+#     # Format context for LLM and extract provenance/top sources
+#     context = _format_context(docs)
+#     top_sources = _extract_top_sources(docs, k=3)
+
+#     # Build prompt text (serialize input safely)
+#     try:
+#         trip_json = json.dumps(jsonable_encoder(inp), indent=2, ensure_ascii=False)
+#     except Exception:
+#         # fallback to simple dict -> json
+#         trip_json = json.dumps(inp if isinstance(inp, dict) else str(inp), indent=2, ensure_ascii=False)
+
+#     prompt_text = BASE_SYSTEM + "\n\n" + PROMPT_INSTRUCTIONS.format(trip=trip_json, context=context)
+#     # Optionally append a short provenance hint for the LLM
+#     if top_sources:
+#         prompt_text += "\n\nTop sources used (for provenance):\n" + "\n".join(top_sources)
+
+#     print(f"[activity_agent] Calling LLM with prompt (truncated)...")
+#     # LLM call (attempt multiple variants for compatibility)
+#     from langchain.schema import HumanMessage
+
+#     text = ""
+#     try:
+#         response = llm.generate([[HumanMessage(content=prompt_text)]])
+#         gens = getattr(response, "generations", None)
+#         if isinstance(gens, list) and gens:
+#             first = gens[0]
+#             if isinstance(first, list) and first and hasattr(first[0], "text"):
+#                 text = first[0].text
+#             else:
+#                 text = str(first[0]) if first else str(response)
+#         else:
+#             text = getattr(response, "llm_output", {}).get("content", "") or str(response)
+#     except Exception as e:
+#         # fallbacks
+#         try:
+#             text = llm.predict(prompt_text)
+#         except Exception:
+#             try:
+#                 res = llm([HumanMessage(content=prompt_text)])
+#                 if isinstance(res, str):
+#                     text = res
+#                 else:
+#                     text = getattr(res, "content", "") or getattr(res, "text", "") or str(res)
+#             except Exception as e2:
+#                 text = ""
+#                 print(f"[activity_agent] LLM calls failed: {e} | fallback: {e2}")
+
+#     # Defensive: if empty or whitespace, skip json.loads and go fallback
+#     if not isinstance(text, str) or not text.strip():
+#         logger.error("[activity_agent] LLM returned empty response; using fallback suggestions. Prompt (truncated): %s", prompt_text[:600])
+#         # build fallback day_plans using dates (guaranteed defined above)
+#         # If we have specific locations (locs) or a destination, synthesize
+#         # concrete suggestions from them so downstream agents get useful data.
+#         day_plans = []
+#         for d in dates:
+#             user_budget = _get("budget", None)
+#             fd = d.strftime("%Y-%m-%d")
+
+#             # Build a richer set of suggestions derived from known locations
+#             suggestions = []
+#             primary = destination or (locs[0] if locs else "the area")
+
+#             # Morning: visit primary point of interest
+#             suggestions.append({
+#                 "time_of_day": "morning",
+#                 "title": f"Visit {primary}",
+#                 "why": f"{primary} offers a great morning experience and cooler temperatures.",
+#                 "source_hints": top_sources,
+#                 "confidence": 0.5,
+#                 "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
+#             })
+
+#             # Noon: food or shorter indoor stop (use a nearby location name if available)
+#             suggestions.append({
+#                 "time_of_day": "noon",
+#                 "title": f"Local lunch and short indoor stop near {primary}",
+#                 "why": "Rest and try local cuisine.",
+#                 "source_hints": top_sources,
+#                 "confidence": 0.4,
+#                 "price_level": _estimate_price_level("Local lunch", "Try local stalls or mid-range cafes", docs, user_budget)
+#             })
+
+#             # Evening: sunset/market
+#             suggestions.append({
+#                 "time_of_day": "evening",
+#                 "title": f"Sunset viewpoint or market walk at {primary}",
+#                 "why": "Golden hour and local vibes.",
+#                 "source_hints": top_sources,
+#                 "confidence": 0.4,
+#                 "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Local atmosphere", docs, user_budget)
+#             })
+
+#             # Night: dinner/cultural show
+#             suggestions.append({
+#                 "time_of_day": "night",
+#                 "title": "Dinner / cultural show",
+#                 "why": "Relax and enjoy local cuisine or a brief cultural performance.",
+#                 "source_hints": top_sources,
+#                 "confidence": 0.4,
+#                 "price_level": _estimate_price_level("Dinner / cultural show", "Local cuisine/culture", docs, user_budget)
+#             })
+
+#             # Add seasonal alternatives for each suggestion if risk present
+#             try:
+#                 location_hint = destination or (locs[0] if locs else "")
+#                 date_obj = datetime.strptime(fd, "%Y-%m-%d")
+#                 risk = _seasonal_risk_for_location(location_hint, date_obj)
+#                 if risk:
+#                     for s in suggestions:
+#                         if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+#                             s["weather_risk"] = True
+#                             s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+#             except Exception:
+#                 pass
+
+#             day_plans.append({"date": fd, "suggestions": suggestions})
+#             # Add seasonal alternatives for each suggestion if risk present
+#             try:
+#                 # determine a reasonable location hint (destination preferred)
+#                 location_hint = destination or (locs[0] if locs else "")
+#                 date_obj = datetime.strptime(fd, "%Y-%m-%d")
+#                 risk = _seasonal_risk_for_location(location_hint, date_obj)
+#                 if risk:
+#                     for s in day_plans[-1]["suggestions"]:
+#                         if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+#                             s["weather_risk"] = True
+#                             s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+#             except Exception:
+#                 pass
+
+#         return {
+#             "destination": destination,
+#             "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
+#             "day_plans": day_plans,
+#             "notes": "LLM returned empty; provided synthesized suggestions based on destination and sources.",
+#             "status": "fallback",
+#             "top_sources": top_sources
+#         }
+
+#     # Try parse JSON from LLM response
+#     try:
+#         data = json.loads(text)
+#         # Attach status and provenance
+#         data["status"] = "complete"
+#         # add top_sources list into result if not present
+#         if "top_sources" not in data:
+#             data["top_sources"] = top_sources
+
+#         # Compute and attach confidence per suggestion
+#         try:
+#             # Determine k for heuristic: use up to 5 docs
+#             heuristic_k = min(5, max(1, len(docs)))
+#             user_budget = _get("budget", None)
+#             for day in data.get("day_plans", []):
+#                 suggestions = day.get("suggestions", [])
+#                 # parse date for weather checks
+#                 date_str = day.get("date")
+#                 try:
+#                     date_obj = datetime.strptime(date_str, "%Y-%m-%d") if date_str else start
+#                 except Exception:
+#                     date_obj = start
+#                 # choose location hint
+#                 location_hint = destination or (locs[0] if locs else "")
+#                 # check risk once per day
+#                 try:
+#                     risk_for_day = _seasonal_risk_for_location(location_hint, date_obj)
+#                 except Exception:
+#                     risk_for_day = False
+
+#                 for s in suggestions:
+#                     title = s.get("title", "") or ""
+#                     # simple heuristic: fraction of top-k docs that mention title tokens
+#                     heuristic = _compute_confidence_for_title(title, docs, k=heuristic_k)
+#                     # For LLM-produced items, ensure a conservative minimum of 0.8
+#                     confidence = max(heuristic, 0.8)
+#                     # clamp between 0 and 1
+#                     confidence = max(0.0, min(1.0, float(confidence)))
+#                     s["confidence"] = confidence
+#                     # ensure source_hints exists
+#                     if "source_hints" not in s:
+#                         s["source_hints"] = top_sources
+#                     # ensure price_level exists; if not compute it
+#                     if "price_level" not in s:
+#                         why = s.get("why", "")
+#                         s["price_level"] = _estimate_price_level(title, why, docs, user_budget)
+
+#                                         # Locality boost / penalty: reduce confidence if suggestion text doesn't appear in any retrieved doc
+#                     loc_match = _compute_confidence_for_title(title, docs, k=heuristic_k)
+#                     # if loc_match is low, mark as low-confidence
+#                     if loc_match < 0.2:
+#                         s["confidence"] = min(s["confidence"], 0.6)  # don't let it be too high
+#                         s["locality_confidence"] = float(loc_match)
+#                     else:
+#                         s["locality_confidence"] = float(loc_match)
+
+
+#                     # Add seasonal/weather-aware alternatives if this looks outdoor AND risk present
+#                     try:
+#                         if risk_for_day and _is_outdoor_activity(title, s.get("why", "")):
+#                             s["weather_risk"] = True
+#                             if "alternatives" not in s or not s["alternatives"]:
+#                                 s["alternatives"] = _suggest_alternatives_for_activity(title)
+#                     except Exception:
+#                         # never let alternatives logic break main flow
+#                         pass
+#         except Exception as ci_e:
+#             print(f"[activity_agent] Confidence assignment failed: {ci_e}")
+
+#         print(f"\nDEBUG: (try block) ACTIVITY AGENT LLM RAW RESPONSE parsed successfully.")
+
+#         # If the LLM returned but omitted day_plans, synthesize from locations to
+#         # avoid returning an empty or trivial plan to downstream agents.
+
+#         # if not data.get("day_plans"):
+#         #     synthesized = []
+#         #     primary = destination or (locs[0] if locs else "the area")
+#         #     user_budget = _get("budget", None)
+#         #     for d in dates:
+#         #         fd = d.strftime("%Y-%m-%d")
+#         #         suggestions = [
+#         #             {
+#         #                 "time_of_day": "morning",
+#         #                 "title": f"Visit {primary}",
+#         #                 "why": f"{primary} is a great morning stop.",
+#         #                 "source_hints": top_sources,
+#         #                 "confidence": 0.5,
+#         #                 "price_level": _estimate_price_level(f"Visit {primary}", "", docs, user_budget)
+#         #             }
+#         #         ]
+#         #         synthesized.append({"date": fd, "suggestions": suggestions})
+#         #     data["day_plans"] = synthesized
+
+#                 # === guaranteed completeness pass: ensure one entry per date and four slots per day ===
+#         try:
+#             # produce a map date -> day object for quick lookup
+#             existing_days = { (d.get("date") or "").strip(): d for d in data.get("day_plans", []) if isinstance(d, dict) }
+#             final_days = []
+#             for d in dates:
+#                 fd = d.strftime("%Y-%m-%d")
+#                 day_obj = existing_days.get(fd)
+#                 if not day_obj:
+#                     # synthesize a day using best-known suggestion titles (try reuse first day's suggestions)
+#                     sample = next(iter(existing_days.values()), None)
+#                     if sample and sample.get("suggestions"):
+#                         # rotate suggestions to create variation
+#                         suggestions = []
+#                         for s in sample["suggestions"][:4]:
+#                             # clone and adapt
+#                             cloned = dict(s)
+#                             cloned["confidence"] = min(0.9, cloned.get("confidence", 0.6) * 0.9)
+#                             # update why to reference the date
+#                             cloned["why"] = (cloned.get("why","") + f" (planned for {fd})").strip()
+#                             suggestions.append(cloned)
+#                     else:
+#                         # fallback 4-slot plan
+#                         suggestions = [
+#                             {"time_of_day":"morning", "title": f"Explore around {destination or 'the area'}", "why":"Good morning activity.", "source_hints": top_sources, "confidence":0.5, "price_level": _estimate_price_level("", "", docs)},
+#                             {"time_of_day":"noon", "title": "Local lunch and short indoor stop", "why":"Rest and try local cuisine.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Local lunch","",docs)},
+#                             {"time_of_day":"evening", "title": "Sunset viewpoint or market walk", "why":"Golden hour.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Sunset viewpoint","",docs)},
+#                             {"time_of_day":"night", "title": "Dinner / cultural show", "why":"Relax and enjoy local cuisine.", "source_hints": top_sources, "confidence":0.45, "price_level": _estimate_price_level("Dinner","",docs)}
+#                         ]
+#                     day_obj = {"date": fd, "suggestions": suggestions}
+#                 else:
+#                     # ensure time_of_day slots exist and fill missing ones
+#                     present_tods = { s.get("time_of_day") for s in day_obj.get("suggestions", []) if isinstance(s, dict) and s.get("time_of_day") }
+#                     forced_slots = []
+#                     for tod in ("morning","noon","evening","night"):
+#                         if tod not in present_tods:
+#                             forced_slots.append({
+#                                 "time_of_day": tod,
+#                                 "title": f"{'Visit' if tod=='morning' else 'Enjoy'} local { 'sights' if tod=='morning' else 'food' } at {destination or 'the area'}",
+#                                 "why": "Filled placeholder to ensure itinerary completeness.",
+#                                 "source_hints": top_sources,
+#                                 "confidence": 0.35,
+#                                 "price_level": _estimate_price_level("", "", docs)
+#                             })
+#                     # append forced slots if any
+#                     if forced_slots:
+#                         day_obj.setdefault("suggestions", []).extend(forced_slots)
+
+#                     # ensure suggestions sorted by morning->night order (if they have that key)
+#                     def tod_key(s):
+#                         order = {"morning":0,"noon":1,"evening":2,"night":3}
+#                         return order.get(s.get("time_of_day"), 99)
+#                     day_obj["suggestions"] = sorted(day_obj.get("suggestions", []), key=tod_key)
+
+#                 final_days.append(day_obj)
+
+#             data["day_plans"] = final_days
+#         except Exception as completeness_exc:
+#             print(f"[activity_agent] Day completeness enforcement failed: {completeness_exc}")
+
+
+#         return data
+#     except Exception as parse_exc:
+#         logger.error("[activity_agent] Could not parse LLM output as JSON: %s", parse_exc)
+#         logger.error("[activity_agent] Raw LLM text (truncated): %s", (text or "")[:2000])
+#         print(f"[activity_agent] Could not parse LLM output as JSON: {parse_exc}")
+#         print(f"[activity_agent] Raw LLM text (truncated): {text[:600]}")
+
+#         # fallback heuristic (use dates guaranteed to be set)
+#         user_budget = _get("budget", None)
+#         day_plans = []
+#         for d in dates:
+#             fd = d.strftime("%Y-%m-%d")
+#             day_plans.append({
+#                 "date": fd,
+#                 "suggestions": [
+#                     {
+#                         "time_of_day": "morning",
+#                         "title": f"Explore around {destination or 'the area'}",
+#                         "why": "Nice light and cooler temps.",
+#                         "source_hints": [],
+#                         "confidence": 0.3,
+#                         "price_level": _estimate_price_level(f"Explore around {destination or 'the area'}", "Nice light and cooler temps.", docs, user_budget)
+#                     },
+#                     {
+#                         "time_of_day": "noon",
+#                         "title": "Local lunch & shorter indoor stop",
+#                         "why": "Avoid the heat.",
+#                         "source_hints": [],
+#                         "confidence": 0.3,
+#                         "price_level": _estimate_price_level("Local lunch & shorter indoor stop", "Avoid the heat.", docs, user_budget)
+#                     },
+#                     {
+#                         "time_of_day": "evening",
+#                         "title": "Sunset viewpoint or market walk",
+#                         "why": "Golden hour and local vibes.",
+#                         "source_hints": [],
+#                         "confidence": 0.3,
+#                         "price_level": _estimate_price_level("Sunset viewpoint or market walk", "Golden hour and local vibes.", docs, user_budget)
+#                     },
+#                     {
+#                         "time_of_day": "night",
+#                         "title": "Dinner / cultural show",
+#                         "why": "Relax and enjoy local cuisine/culture.",
+#                         "source_hints": [],
+#                         "confidence": 0.3,
+#                         "price_level": _estimate_price_level("Dinner / cultural show", "Relax and enjoy local cuisine/culture.", docs, user_budget)
+#                     },
+#                 ]
+#             })
+#             # Add seasonal alternatives for this fallback day if risk present
+#             try:
+#                 location_hint = destination or (locs[0] if locs else "")
+#                 date_obj = datetime.strptime(fd, "%Y-%m-%d")
+#                 risk = _seasonal_risk_for_location(location_hint, date_obj)
+#                 if risk:
+#                     for s in day_plans[-1]["suggestions"]:
+#                         if _is_outdoor_activity(s.get("title", ""), s.get("why", "")):
+#                             s["weather_risk"] = True
+#                             s["alternatives"] = _suggest_alternatives_for_activity(s.get("title", ""))
+#             except Exception:
+#                 pass
+
+#         return {
+#             "destination": destination,
+#             "overall_theme": f"Activities near {destination}" if destination else "Suggested activities",
+#             "day_plans": day_plans,
+#             "notes": "LLM returned non-JSON; provided fallback suggestions.",
+#             "status": "fallback",
+#             "top_sources": top_sources
+#         }
 
 
 
