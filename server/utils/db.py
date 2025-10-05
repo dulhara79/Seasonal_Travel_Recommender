@@ -29,7 +29,7 @@ async def connect_to_mongo():
         print("Warning: could not ensure conversation indexes at startup.")
     # Avoid using non-ASCII emoji characters in logs to prevent
     # UnicodeEncodeError on Windows consoles using cp1252 encoding.
-    print("Connected to MongoDB and ensured indexes were created.")
+    print("[INFO] MongoDB connection established. Indexes verified.")
 
 
 async def close_mongo_connection():
@@ -38,7 +38,7 @@ async def close_mongo_connection():
         client.close()
         client = None
         db = None
-        print("MongoDB connection closed.")
+        print("[INFO] MongoDB connection closed.")
 
 
 def get_db() -> AsyncIOMotorDatabase:
