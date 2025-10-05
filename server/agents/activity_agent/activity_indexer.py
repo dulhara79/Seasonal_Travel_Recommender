@@ -409,21 +409,24 @@ def _llm_fetch_local_activities(location: str, prefs: str, num_days: int = 3, it
         llm_model = _llm()
 
     prompt = (
-        "You are a helpful travel assistant. The user asked for activities near a location.\n"
-        "Return ONLY a JSON array of objects. Each object should have the keys:\n"
-        "  date_offset (integer, 0 means first trip day),\n"
-        "  time_of_day (one of morning|noon|evening|night),\n"
-        "  title (string),\n"
-        "  why (one short sentence),\n"
-        "  source_hint (string),\n"
-        "  price_level (one of low|medium|high)\n\n"
-        "Constraints:\n"
-        f"- Provide roughly {items_per_day * num_days} items spread across offsets 0..{num_days-1}.\n"
-        "- If you are unsure of exact local facts, set source_hint to 'local knowledge / estimate'.\n"
-        "- Keep 'why' to one short sentence. Do NOT output narrative outside the JSON.\n\n"
-        f"Location: {location}\nPreferences: {prefs or 'none'}\nnum_days: {num_days}\nitems_per_day: {items_per_day}\n\n"
-        "Output JSON now:"
-    )
+    "You are a travel assistant. The user asked for activities near a specific location. "
+    "IMPORTANT: Only produce activities that are in or immediately surrounding the exact location given below. "
+    "Do NOT list activities or places in other towns or regions. If you are unsure whether a place is in that town, "
+    "set source_hint to 'local knowledge / estimate' and do NOT name a different town. Be conservative.\n\n"
+    "Return ONLY a JSON array of objects. Each object must have:\n"
+    "  date_offset (integer, 0 means first trip day),\n"
+    "  time_of_day (one of morning|noon|evening|night),\n"
+    "  title (string),\n"
+    "  why (one short sentence),\n"
+    "  source_hint (string),\n"
+    "  price_level (one of low|medium|high)\n\n"
+    f"Constraints:\n- Provide roughly {items_per_day * num_days} items spread across offsets 0..{num_days-1}.\n"
+    "- If unsure about exact local facts, explicitly use source_hint: 'local knowledge / estimate'.\n"
+    "- DO NOT mention towns other than: {location}\n"
+    "- Do not output narrative outside the JSON.\n\n"
+    f"Location: {location}\nPreferences: {prefs or 'none'}\nnum_days: {num_days}\nitems_per_day: {items_per_day}\n\nOutput JSON now:"
+)
+
 
     text = ""
     try:
@@ -532,16 +535,58 @@ def suggest_activities(inp: dict) -> dict:
         print(f"[activity_agent] Retriever failed: {e}")
         docs = []
 
-    # LLM fallback when index has insufficient local hits
+    # # LLM fallback when index has insufficient local hits
+    # try:
+    #     loc_tokens = [l.lower() for l in (locs or []) if l]
+    #     local_hits = 0
+    #     for d in docs:
+    #         txt = ((d.metadata or {}).get("source", "") + " " + (d.page_content or "")).lower()
+    #         if any(tok in txt for tok in loc_tokens):
+    #             local_hits += 1
+
+    #     if local_hits < 2 and destination:
+    #         gen_items = _llm_fetch_local_activities(destination, prefs, num_days=num_days, items_per_day=4, llm_model=llm)
+    #         if gen_items:
+    #             class _SimpleDoc:
+    #                 def __init__(self, content, meta):
+    #                     self.page_content = content
+    #                     self.metadata = meta
+    #             synth_docs = []
+    #             for gi in gen_items:
+    #                 content = json.dumps(gi, ensure_ascii=False)
+    #                 meta = {"source": "llm_generated", "tags": [destination.lower()]}
+    #                 synth_docs.append(_SimpleDoc(content, meta))
+    #             docs = synth_docs + docs
+    # except Exception as e:
+    #     print(f"[activity_agent] LLM fallback generation failed: {e}")
+
+    # --- stronger local evidence check + fallback generation ---
+    def _count_local_hits(docs, loc_tokens):
+        hits = 0
+        for d in docs:
+            meta = d.metadata or {}
+            src = (meta.get("source") or meta.get("url") or "").lower()
+            tags = [t.lower() for t in meta.get("tags", [])]
+            txt = (d.page_content or "").lower()
+            # strong indicators
+            if any(tok in src for tok in loc_tokens):
+                hits += 3
+                continue
+            if any(tok in tags for tok in loc_tokens):
+                hits += 2
+                continue
+            # content token match (weaker)
+            if any(tok in txt for tok in loc_tokens):
+                hits += 1
+        return hits
+
     try:
         loc_tokens = [l.lower() for l in (locs or []) if l]
-        local_hits = 0
-        for d in docs:
-            txt = ((d.metadata or {}).get("source", "") + " " + (d.page_content or "")).lower()
-            if any(tok in txt for tok in loc_tokens):
-                local_hits += 1
-
-        if local_hits < 2 and destination:
+        local_score = _count_local_hits(docs, loc_tokens)
+        # require a stronger score for confidence; tune if needed
+        # e.g., for one strong doc => 3, for two medium docs => 4, etc.
+        if local_score < 3 and destination:
+            # generate synthetic local items (LLM) anchored to "destination"
             gen_items = _llm_fetch_local_activities(destination, prefs, num_days=num_days, items_per_day=4, llm_model=llm)
             if gen_items:
                 class _SimpleDoc:
@@ -550,12 +595,17 @@ def suggest_activities(inp: dict) -> dict:
                         self.metadata = meta
                 synth_docs = []
                 for gi in gen_items:
+                    # include the canonical destination token in metadata to make it match later
                     content = json.dumps(gi, ensure_ascii=False)
-                    meta = {"source": "llm_generated", "tags": [destination.lower()]}
+                    meta = {"source": f"llm_generated:{destination.lower()}", "tags": [destination.lower()]}
                     synth_docs.append(_SimpleDoc(content, meta))
-                docs = synth_docs + docs
+                # Prepend synthetic docs so they dominate local context
+                docs = synth_docs + (docs or [])
     except Exception as e:
         print(f"[activity_agent] LLM fallback generation failed: {e}")
+
+
+    
 
     context = _format_context(docs)
     top_sources = _extract_top_sources(docs, k=3)
@@ -668,6 +718,31 @@ def suggest_activities(inp: dict) -> dict:
         data["status"] = "complete"
         if "top_sources" not in data:
             data["top_sources"] = top_sources
+
+        # --- POST-LM VERIFICATION PASS: quick fact-check / anchoring ---
+        # quick verify each suggestion is anchored to the destination tokens
+        for day in data.get("day_plans", []):
+            for s in day.get("suggestions", []):
+                title = (s.get("title", "") or "").lower()
+                # small blacklist of other known towns to detect cross-town leakage
+                other_towns = ["ella", "kandy", "nuwara eliya", "hikkaduwa", "mirissa", "trincomalee"]
+                if destination:
+                    dest_low = destination.lower()
+                else:
+                    dest_low = ""
+                # flag suggestions that mention a different known-town token
+                for town in other_towns:
+                    if town in title and town not in dest_low:
+                        s.setdefault("warnings", []).append("suggestion_mentions_other_town")
+                        s["confidence"] = min(s.get("confidence", 1.0), 0.5)
+                        s["source_hints"] = s.get("source_hints", []) + ["potentially_nonlocal"]
+                        break
+                # ensure locality_confidence exists, default low if absent
+                if "locality_confidence" not in s:
+                    try:
+                        s["locality_confidence"] = float(_compute_confidence_for_title(s.get("title", ""), docs, k=min(5, max(1, len(docs)))))
+                    except Exception:
+                        s["locality_confidence"] = 0.0
 
         try:
             heuristic_k = min(5, max(1, len(docs)))
