@@ -1,0 +1,75 @@
+{
+  "destination": "Galle, Sri Lanka",
+  "overall_theme": "adventure",
+  "day_plans": [
+    {
+      "date": "2025-10-05",
+      "suggestions": [
+        {
+          "time_of_day": "morning",
+          "title": "Hike to Ella Rock",
+          "why": "Enjoy a scenic hike with the possibility of catching a beautiful sunrise from the summit.",
+          "source_hints": [
+            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka",
+            "potentially_nonlocal"
+          ],
+          "price_level": "low",
+          "confidence": 0.8,
+          "warnings": [
+            "suggestion_mentions_other_town"
+          ],
+          "locality_confidence": 0.2,
+          "weather_risk": true,
+          "alternatives": [
+            "Visit a tea factory / factory tour",
+            "Explore a covered local market or museum"
+          ]
+        },
+        {
+          "time_of_day": "noon",
+          "title": "Visit Nine Arch Bridge",
+          "why": "Explore the iconic Nine Arch Bridge after your morning hike to Ella Rock.",
+          "source_hints": [
+            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
+          ],
+          "price_level": "low",
+          "confidence": 0.8,
+          "locality_confidence": 0.2,
+          "weather_risk": true,
+          "alternatives": [
+            "Visit a museum or cultural center",
+            "Take a local cooking class or tea tasting",
+            "Explore covered local markets"
+          ]
+        },
+        {
+          "time_of_day": "evening",
+          "title": "Explore cinnamon peeling on Ganduwa Island",
+          "why": "Learn about Ceylon cinnamon production on Ganduwa Island near Galle.",
+          "source_hints": [
+            "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
+          ],
+          "price_level": "low",
+          "confidence": 0.8,
+          "locality_confidence": 0.4
+        },
+        {
+          "time_of_day": "night",
+          "title": "Placeholder: Night activity",
+          "why": "No specific night activity suggested for this location and preferences.",
+          "source_hints": [],
+          "price_level": "low",
+          "confidence": 0.8,
+          "locality_confidence": 0.2
+        }
+      ]
+    }
+  ],
+  "notes": "For more adventure activities, consider checking out the detour mountain towns mentioned in the source.",
+  "status": "complete",
+  "top_sources": [
+    "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka",
+    "https://www.peek.com/sri-lanka/r0arry/tours/tag0eq",
+    "https://beyondwildplaces.com/amazing-things-to-do-in-sri-lanka/"
+  ]
+}
