@@ -589,6 +589,13 @@ def suggest_activities(inp: dict) -> dict:
         end = start
     dates = _date_range(start, end)
 
+
+
+
+
+
+    
+
     # Format context for LLM and extract provenance/top sources
     context = _format_context(docs)
     top_sources = _extract_top_sources(docs, k=3)
