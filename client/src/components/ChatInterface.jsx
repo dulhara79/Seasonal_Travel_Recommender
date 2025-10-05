@@ -230,9 +230,23 @@ const ChatInterface = () => {
         text: msg.text,
         isUser: msg.role === "user",
         timestamp: msg.timestamp,
+        // The savedState is a custom field you must have saved when appending the message
+        savedState: msg.state,
       }));
+
+      // --- NEW LOGIC: Extract the latest saved state ---
+      const lastAssistantMessage = loadedMessages
+        .slice() // create a copy
+        .reverse()
+        .find((msg) => msg.role === "assistant");
+
+      // If a state was saved on the last assistant message, use it to continue the conversation
+      const lastSavedState = lastAssistantMessage?.savedState || null;
+      // ----------------------------------------------------
+
       setMessages(loadedMessages);
-      setPreviousState(null);
+      setPreviousState(lastSavedState); // Use the loaded state for the next query
+      setInput("");
     } catch (error) {
       console.error("Failed to load trip:", error);
       startNewTrip();
@@ -669,7 +683,9 @@ const ChatInterface = () => {
               {settingsOpen && (
                 <div className="absolute left-0 bottom-14 w-64 bg-white rounded-2xl shadow-xl border border-emerald-100 p-3 z-50">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-gray-700">Settings</div>
+                    <div className="text-sm font-semibold text-gray-700">
+                      Settings
+                    </div>
                     <button
                       onClick={() => setSettingsOpen(false)}
                       className="text-gray-400 hover:text-gray-600"
@@ -700,7 +716,9 @@ const ChatInterface = () => {
                       Delete Account
                     </button>
 
-                    <div className="text-xs text-gray-500">More settings coming soon</div>
+                    <div className="text-xs text-gray-500">
+                      More settings coming soon
+                    </div>
                   </div>
                 </div>
               )}
