@@ -224,34 +224,34 @@ def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
 
 
 
-def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
-    """
-    Returns a retrieval function that uses a MultiQueryRetriever (if available)
-    to produce a list of relevant Document objects (chunks).
-    """
-    base_ret = vs.as_retriever(search_type="mmr", search_kwargs={"k": 8, "fetch_k": 32})
-    if MultiQueryRetriever is not None:
-        mqr = MultiQueryRetriever.from_llm(retriever=base_ret, llm=llm)
-    else:
-        mqr = None
+# def _retriever_for_location(vs: FAISS, locs: List[str], llm: ChatOpenAI):
+#     """
+#     Returns a retrieval function that uses a MultiQueryRetriever (if available)
+#     to produce a list of relevant Document objects (chunks).
+#     """
+#     base_ret = vs.as_retriever(search_type="mmr", search_kwargs={"k": 8, "fetch_k": 32})
+#     if MultiQueryRetriever is not None:
+#         mqr = MultiQueryRetriever.from_llm(retriever=base_ret, llm=llm)
+#     else:
+#         mqr = None
 
-    def retrieve(query: str):
-        if mqr:
-            docs = mqr.invoke(query)
-        else:
-            docs = base_ret.invoke(query)
+#     def retrieve(query: str):
+#         if mqr:
+#             docs = mqr.invoke(query)
+#         else:
+#             docs = base_ret.invoke(query)
 
-        # Light location filter by tag presence or substring match
-        keep = []
-        for d in docs:
-            tags = [t.lower() for t in (d.metadata or {}).get("tags", [])]
-            txt = d.page_content.lower()
-            if any(l in tags for l in locs) or any(l in txt for l in locs):
-                keep.append(d)
-        # fallback if too strict
-        return keep or docs
+#         # Light location filter by tag presence or substring match
+#         keep = []
+#         for d in docs:
+#             tags = [t.lower() for t in (d.metadata or {}).get("tags", [])]
+#             txt = d.page_content.lower()
+#             if any(l in tags for l in locs) or any(l in txt for l in locs):
+#                 keep.append(d)
+#         # fallback if too strict
+#         return keep or docs
 
-    return retrieve
+#     return retrieve
 
 
 def _llm():
