@@ -925,9 +925,9 @@ def suggest_activities(inp: dict) -> dict:
         }
 
 
-# CLI entry disabled for module import safety
-# CLI entry: build index if script run directly
-if __name__ == "__main__":
-    print("Building / refreshing FAISS index for activity retrieval...")
-    build_or_refresh_index()
-    print("Done.")
+# # CLI entry disabled for module import safety
+# # CLI entry: build index if script run directly
+# if __name__ == "__main__":
+#     print("Building / refreshing FAISS index for activity retrieval...")
+#     build_or_refresh_index()
+#     print("Done.")
