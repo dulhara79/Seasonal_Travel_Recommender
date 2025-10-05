@@ -190,6 +190,37 @@ def _date_range(start: datetime, end: datetime):
 #                 names.append(n)
 #     return names or [primary.strip().lower()]
 
+def _expand_locations(primary: str, suggest_locations: Optional[List[str]]):
+    """
+    Turn a destination and optional suggestions into a robust list of location tokens
+    used for substring/tag matching. Break multi-word names into tokens, include
+    common short variants.
+    """
+    names = []
+    def add_name(s):
+        if not s:
+            return
+        n = s.strip().lower()
+        if n and n not in names:
+            names.append(n)
+
+    add_name(primary)
+    if suggest_locations:
+        for s in suggest_locations:
+            add_name(s)
+
+    # also include tokenized forms (split on non-word) so "Maskeliya, Nuwara Eliya" can match "maskeliya"
+    tokens = []
+    for n in list(names):
+        for tok in re.split(r"[\s,/_\-]+", n):
+            tok = tok.strip()
+            if tok and tok not in names:
+                tokens.append(tok)
+    for t in tokens:
+        add_name(t)
+
+    # fallback: if still empty, include a generic placeholder
+    return names or [primary.strip().lower()] if primary else []
 
 
 
