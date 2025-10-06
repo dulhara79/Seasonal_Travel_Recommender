@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
 
-const API_BASE_URL = "https://huggingface.co/spaces/dulharakaushalya/seasonal-travel-recommender-backend";
+// Use Vite env var so the deployed frontend can point to different backends
+// Vite exposes env vars prefixed with VITE_ to the client.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -112,7 +114,10 @@ export const AuthProvider = ({ children }) => {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     };
 
-    const res = await axios.post(`${API_BASE_URL}/auth/token`, params, config);
+  // Note: the server FastAPI routes are mounted under /api/auth (see server/api/main.py)
+  // If the base URL already includes a path like '/api' the concatenation still works.
+  const tokenUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/auth/token`;
+  const res = await axios.post(tokenUrl, params, config);
     setToken(res.data.access_token);
     // User data will be loaded via useEffect
   };
