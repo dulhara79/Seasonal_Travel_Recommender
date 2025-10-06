@@ -6,8 +6,9 @@ function App() {
   const [conversation, setConversation] = useState([]);
   const [followupAnswers, setFollowupAnswers] = useState({});
 
-    const API_BASE_URL = "https://huggingface.co/spaces/dulharakaushalya/seasonal-travel-recommender-backend"
-    const API_URL = `${API_BASE_URL}/travel`;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  // The backend API routes are mounted under /api — keep frontend calls consistent
+  const API_URL = `${API_BASE_URL.replace(/\/$/, '')}/api/travel`;
 
   const sendQuery = async (q = query, answers = followupAnswers) => {
     const res = await axios.post(API_URL, {
