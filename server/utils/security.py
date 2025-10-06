@@ -2,12 +2,14 @@ from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import jwt
 
+from server.utils.config import JWT_SECRET, JWT_ALGORITHM
+
 # hashing setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
-SECRET_KEY = "super-secret-key"   # 🔴 replace with os.getenv("SECRET_KEY")
-ALGORITHM = "HS256"
+SECRET_KEY = JWT_SECRET
+ALGORITHM = JWT_ALGORITHM
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
