@@ -1,153 +1,167 @@
 # server/api/route.py
 
-from fastapi import APIRouter, Body, HTTPException, Depends
-from typing import Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from server.schemas.global_schema import TravelState
-from server.schemas.userQuery_schema import UserQuerySchema
+from typing import Dict, Any, Optional
+from datetime import datetime
+import traceback
+from pydantic import ValidationError  # Added to catch schema errors
+
+# Internal dependencies
 from server.api.auth import get_current_user
+from server.workflow.workflow import build_trip_workflow
+from server.workflow.app_state import TripPlanState
+from server.schemas.orchestrator_schemas import OrchestratorAgent4OutputSchema  # For initial state
+from server.schemas.location_agent_schemas import LocationAgentOutputSchema  # For serialization check
 
+router = APIRouter(tags=["plan"])
+
+
+# --- Schemas for API Input/Output ---
+class QueryRequest(BaseModel):
+    """Schema for a new user query, possibly with a previous state."""
+    query: str
+    # The state is passed as a JSON/dict representation of the TripPlanState
+    previous_state: Optional[Dict[str, Any]] = None
+
+
+class QueryResponse(BaseModel):
+    """Schema for the API response."""
+    response: str  # The final_response text
+    current_state: Dict[str, Any]  # The full new state (for saving/next turn)
+
+
+# --- Utility to ensure Pydantic objects are serialized for the API response ---
+def _serialize_state_for_api(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts known Pydantic models in the state dict to standard dictionaries."""
+
+    # Deep copy the state to avoid modifying the LangGraph in-memory state object
+    serialized_state = state.copy()
+
+    # Key fields that might hold Pydantic models based on TripPlanState definition
+    pydantic_fields = {
+        "trip_data": OrchestratorAgent4OutputSchema,
+        "location_recs": LocationAgentOutputSchema,
+        # Add other structured fields here (activity_recs, packing_recs) if they use Pydantic models
+    }
+
+    for key, Model in pydantic_fields.items():
+        if key in serialized_state and serialized_state[key] is not None:
+            value = serialized_state[key]
+
+            # 1. If it's the actual Pydantic object (returned by an agent node)
+            if hasattr(value, 'model_dump'):
+                serialized_state[key] = value.model_dump()
+
+            # 2. If it's a dict that was successfully loaded from history, ensure it's validated
+            elif isinstance(value, dict):
+                try:
+                    # Attempt to validate and dump it again to ensure compliance
+                    validated_model = Model.model_validate(value)
+                    serialized_state[key] = validated_model.model_dump()
+                except (ValidationError, TypeError):
+                    # If validation fails, leave it as is or log a warning
+                    print(f"Warning: Could not validate stored dictionary for key: {key}")
+                    pass  # Keep the original dictionary if validation fails
+
+    return serialized_state
+
+
+# --- Initialize Workflow ---
 try:
-    # Attempt to import and build the workflow graph. Optional deps like
-    # `langgraph` may be missing in some environments; keep the API usable
-    # by falling back to a minimal no-op workflow.
-    from server.workflow.graph_builder import build_graph
-
-    # Build the workflow graph
-    workflow = build_graph()
+    app_workflow = build_trip_workflow()
+    print("[API] Trip planning workflow initialized.")
 except Exception as e:
-    print("Warning: workflow graph unavailable (optional).", str(e))
-    from types import SimpleNamespace
-
-    workflow = SimpleNamespace(invoke=lambda s: s)
-
-# API Router
-router = APIRouter()
-
-# --- Define the essential questions for planning a trip ---
-REQUIRED_QUESTIONS = {
-    "destination": "🌍 Where would you like to travel?",
-    "start_date": "📅 What is your trip start date? (YYYY-MM-DD)",
-    "end_date": "📅 What is your trip end date? (YYYY-MM-DD)",
-    "no_of_traveler": "👥 How many people are traveling?",
-    "type_of_trip": "🎯 What type of trip is this (leisure, adventure, business, etc.)?",
-}
+    app_workflow = None
+    print(f"[API] ERROR: Could not initialize LangGraph workflow: {e}")
 
 
-# --- Pydantic Models for Request Bodies ---
-
-class FollowUpPayload(BaseModel):
-    """Defines the payload for the /answer-followup endpoint."""
-    current_state: Dict[str, Any]
-    answers: Dict[str, Any]
-
-
-# --- Helper Function for Building API Responses ---
-
-def _build_final_response(state: TravelState | Dict[str, Any]) -> Dict[str, Any]:
+@router.post("/query", response_model=QueryResponse)
+async def process_query(
+        request: QueryRequest,
+        current_user: dict = Depends(get_current_user)
+):
     """
-    Analyzes the state and builds the appropriate API response.
-
-    - If required information is missing, it returns a 'followup_required' response.
-    - If all required information is present, it returns a 'complete' response.
+    Processes a user query by running the LangGraph workflow, which orchestrates
+    data extraction, location recommendation, and summarization.
     """
-    # Support both pydantic TravelState objects and plain dicts returned by
-    # the workflow. This prevents attribute errors when the workflow returns
-    # a dict during testing or when optional components fall back to simple
-    # structures.
-    if isinstance(state, dict):
-        def _get(f):
-            return state.get(f)
-    else:
-        def _get(f):
-            return getattr(state, f, None)
+    if not app_workflow:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The trip planning service is not available (workflow failed to initialize)."
+        )
 
-    missing_fields = [field for field in REQUIRED_QUESTIONS if not _get(field)]
+    user_query = request.query
+    initial_state_dict = request.previous_state
 
-    if missing_fields:
-        # Generate questions for the fields that are still missing
-        questions_to_ask = [REQUIRED_QUESTIONS[field] for field in missing_fields]
-        # When returning current_state, always normalize to a dict so the
-        # frontend can safely inspect it.
-        current_state = state.dict() if not isinstance(state, dict) else state
-        return {
-            "status": "followup_required",
-            "missing_fields": missing_fields,
-            "questions": questions_to_ask,
-            "current_state": current_state,
-        }
-    else:
-        # All required info is present, return the final trip plan
-        # Normalize values whether coming from a dict or TravelState.
-        def _val(f, cast=str, default=None):
-            v = _get(f)
-            if v is None:
-                return default
-            return cast(v) if cast else v
-
-        current_state = state.dict() if not isinstance(state, dict) else state
-
-        return {
-            "status": "complete",
-            "trip_plan": {
-                "destination": current_state.get("destination"),
-                "start_date": str(current_state.get("start_date")) if current_state.get("start_date") else None,
-                "end_date": str(current_state.get("end_date")) if current_state.get("end_date") else None,
-                "no_of_traveler": current_state.get("no_of_traveler"),
-                "type_of_trip": current_state.get("type_of_trip"),
-                "season": current_state.get("season"),
-                "budget": current_state.get("budget"),
-                "preferences": current_state.get("user_preferences"),
-                "locations_to_visit": current_state.get("locations_to_visit"),
-                "activities": current_state.get("activities"),
-                "summary": current_state.get("summary"),
-            },
-        }
-
-
-# --- API Endpoints ---
-
-@router.post("/process-query", response_model=Dict[str, Any])
-async def process_query(payload: UserQuerySchema = Body(...), current_user = Depends(get_current_user)) -> Dict[str, Any]:
-    """
-    Processes the initial user query to start planning a trip. It runs the
-    query through the workflow and determines if more information is needed.
-    """
     try:
-        # Initialize the state with the user's raw query. Accept both 'id'
-        # and '_id' keys from the current_user dict for robustness.
-        user_id = None
-        if isinstance(current_user, dict):
-            user_id = current_user.get("id") or current_user.get("_id")
+        # --- 1. Prepare Initial State ---
+        if initial_state_dict:
+            # If coming from previous turns, use the state passed by the frontend
+            current_state = initial_state_dict
+        else:
+            # Start a new conversation with base state
+            # NOTE: Do NOT initialize `trip_data` with a Pydantic object set to
+            # 'awaiting_user_input' because the router treats that as an in-progress
+            # orchestrator flow and will force the orchestrator node. Use `None`
+            # to indicate no prior orchestrator extraction has started.
+            current_state: TripPlanState = {
+                "user_query": user_query,
+                "chat_history": [],
+                "intent": None,
+                "trip_data": None,
+                "location_recs": None,
+                "activity_recs": None,
+                "packing_recs": None,
+                "latest_summary": None,
+                "final_response": None,
+                "conversation_id": None  # Initialize ID for persistence tracking
+            }
 
-        initial_state = {"additional_info": payload.query, "user_id": user_id}
-        # Run the workflow to extract information from the query
-        result_state = workflow.invoke(initial_state)
+        # Ensure the current query is set correctly
+        current_state['user_query'] = user_query
 
-        # Build and return the response based on the workflow's output
-        return _build_final_response(result_state)
+        # Append human query to chat history
+        # NOTE: We append here to include in the LLM context, but the final history update 
+        # is handled after the loop to ensure the "ai" response is paired.
+
+        # --- 2. Execute Workflow ---
+        final_state = current_state
+        # Run the LangGraph
+        for step_output in app_workflow.stream(current_state):
+            # Update the state with the node's output
+            last_node = list(step_output.keys())[-1]
+            final_state.update(step_output[last_node])
+
+            # Record lightweight processing metadata
+            try:
+                final_state.setdefault("_processing_steps", [])
+                final_state["_processing_steps"].append({
+                    "node": last_node,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "note": f"Completed node {last_node}",
+                })
+                final_state["_processing_last_node"] = last_node
+            except Exception:
+                pass
+
+        # Add the final AI response to history
+        # We must add the user query to the history *before* the loop 
+        # or it will be missed by the next turn, but let's keep it simple
+        # and ensure the UI/History component handles the turn-based history correctly.
+
+        # --- 3. Prepare Response ---
+        # Ensure all Pydantic objects are converted to dictionaries for safe JSON serialization
+        response_state = _serialize_state_for_api(final_state)
+
+        return QueryResponse(
+            response=final_state.get("final_response", "I could not generate a response."),
+            current_state=response_state
+        )
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-
-@router.post("/answer-followup", response_model=Dict[str, Any])
-async def answer_followup(payload: FollowUpPayload = Body(...)) -> Dict[str, Any]:
-    """
-    Processes a user's answers to follow-up questions. It merges the new
-    answers with the previous state and re-runs the workflow.
-    """
-    try:
-        # Merge the previous state with the new answers to ensure continuity
-        updated_state_data = payload.current_state
-        updated_state_data.update(payload.answers)
-
-        # Pass the new answers as 'additional_info' for contextual processing
-        updated_state_data['additional_info'] = " ".join(map(str, payload.answers.values()))
-
-        # Re-run the workflow with the combined information
-        result_state = workflow.invoke(updated_state_data)
-
-        # Build and return the final response
-        return _build_final_response(result_state)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+        print("Workflow execution error:\n", traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An internal error occurred during planning: {e}"
+        )

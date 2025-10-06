@@ -1,0 +1,66 @@
+{
+  "destination": "Galle, Sri Lanka",
+  "overall_theme": "adventure",
+  "day_plans": [
+    {
+      "date": "2025-10-05",
+      "suggestions": [
+        {
+          "time_of_day": "morning",
+          "title": "Jeep Safari & Park Walk at Gal Oya Lodge",
+          "why": "Explore the forgotten Nilagala section of the National Park in an open-top 4x4, searching for wildlife and medicinal plants.",
+          "source_hints": [
+            "https://www.experiencetravelgroup.com/sri_lanka/off-beaten-track"
+          ],
+          "price_level": "medium",
+          "confidence": 0.8,
+          "locality_confidence": 0.4,
+          "weather_risk": true,
+          "alternatives": [
+            "Visit a museum or cultural center",
+            "Take a local cooking class or tea tasting",
+            "Explore covered local markets"
+          ]
+        },
+        {
+          "time_of_day": "noon",
+          "title": "Visit Galle Fort",
+          "why": "Explore the historic Galle Fort with a local historian, discovering its cultural significance.",
+          "source_hints": [
+            "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle"
+          ],
+          "price_level": "low",
+          "confidence": 1.0,
+          "locality_confidence": 1.0
+        },
+        {
+          "time_of_day": "evening",
+          "title": "Cultural Exploration in Jaffna",
+          "why": "Discover the distinct culture and food scene in the north around the lesser-visited area of Jaffna.",
+          "source_hints": [
+            "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle"
+          ],
+          "price_level": "low",
+          "confidence": 0.8,
+          "locality_confidence": 0.2
+        },
+        {
+          "time_of_day": "night",
+          "title": "Placeholder: Night Activity",
+          "why": "No specific night activity suggestion available.",
+          "source_hints": [],
+          "price_level": "low",
+          "confidence": 0.6,
+          "locality_confidence": 0.0
+        }
+      ]
+    }
+  ],
+  "notes": "Enjoy a day filled with adventure, cultural exploration, and wildlife encounters in and around Galle, Sri Lanka.",
+  "status": "complete",
+  "top_sources": [
+    "https://www.experiencetravelgroup.com/sri_lanka/off-beaten-track",
+    "https://www.experiencetravelgroup.com/sri_lanka/info/the-cultural-triangle",
+    "http://lonelyplanet.com/articles/top-things-to-do-in-sri-lanka"
+  ]
+}

@@ -1,27 +1,46 @@
-import { useState } from 'react'
-import './App.css'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-// import Home from './pages/Home'
-// import Conversation from './pages/Conversation'
-// import Summary from './pages/Summary'
-import TravelRecommendation from './components/TravelRecommender'
-import TravelAgentWithFollowup from './components/TravelAgentWithFollowup'
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'; // FIX: Added .jsx extension
+import AuthForm from './components/AuthForm.jsx'; // FIX: Added .jsx extension
+import ChatInterface from './components/ChatInterface.jsx'; // FIX: Added .jsx extension
 
-function App() {
-  // conversationMarkdown will hold markdown received from the summary agent
-//   const [conversationMarkdown, setConversationMarkdown] = useState('# Summary will appear here')
+// A simple protected route wrapper
+const ProtectedRoute = ({ element: Element }) => {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <h1 className="text-xl font-semibold">Loading...</h1>
+        </div>
+    );
+  }
 
-  return (
-    <BrowserRouter>
-      <Routes>
-            <Route path="/" element={<TravelRecommendation />} />
-            <Route path="/followup" element={<TravelAgentWithFollowup />} />
-{/*         <Route path="/" element={<Home />} /> */}
-{/*         <Route path="/conversation" element={<Conversation markdown={conversationMarkdown} onSummary={setConversationMarkdown} />} /> */}
-{/*         <Route path="/summary" element={<Summary markdown={conversationMarkdown} />} /> */}
-      </Routes>
-    </BrowserRouter>
-  )
+  return user ? <Element /> : <Navigate to="/auth" />;
+};
+
+const AppRoutes = () => {
+    const { user } = useAuth(); 
+
+    return (
+        <Routes>
+            <Route path="/auth" element={<AuthForm />} />
+            <Route path="/chat" element={<ProtectedRoute element={ChatInterface} />} />
+            <Route path="/" element={<Navigate to={user ? "/chat" : "/auth"} />} />
+        </Routes>
+    )
 }
 
-export default App
+
+const App = () => {
+  return (
+    // FIX: Added future flags to BrowserRouter to silence v7 deprecation warnings
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
+export default App;

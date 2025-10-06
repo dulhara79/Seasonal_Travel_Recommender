@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
 class PackingItem(BaseModel):
@@ -33,7 +33,18 @@ class TravelState(BaseModel):
     messages: List[dict] = []
 
     # From Location Agent
+    # Convenience list of location names to visit (used by workflows and summary)
     locations_to_visit: List[str] = []
+    # Raw full output from Location Agent (keeps the original parsed JSON)
+    location_recommendations: Optional[Dict[str, Any]] = None
+
+    # From Activity Agent
+    # Keep the existing convenience list (per-day plans) and also raw output
+    activities: Optional[List] = None
+    activity_recommendations: Optional[Dict[str, Any]] = None
+
+    # From Packing Agent
+    packing_list: Optional[PackingOutput] = None
 
     # From Activity Agent
     activities: Optional[List] = None
