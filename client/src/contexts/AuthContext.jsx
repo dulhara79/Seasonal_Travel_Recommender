@@ -19,8 +19,11 @@ export const AuthProvider = ({ children }) => {
   const inactivityTimer = useRef(null);
 
   // --- Authenticated API Instance ---
+  // Make the api instance include the '/api' prefix so callers using
+  // api.get('/auth/me') resolve to `${API_BASE_URL}/api/auth/me` instead
+  // of `${API_BASE_URL}/auth/me` which would 404.
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: `${API_BASE_URL.replace(/\/$/, '')}/api`,
   });
 
   api.interceptors.request.use((config) => {
