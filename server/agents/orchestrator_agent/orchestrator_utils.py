@@ -13,7 +13,7 @@ from langchain_core.exceptions import OutputParserException
 # NOTE: Replace with your actual schema imports
 from server.schemas.orchestrator_schemas import (
     OrchestratorExtractionSchema,
-    OrchestratorAgent4OutpuSchema,
+    OrchestratorAgent4OutputSchema,
     # OrchestratorAgent4InputSchema (not used in this module)
 )
 
@@ -174,7 +174,7 @@ def _flexible_date_parse(date_str: str) -> Optional[date]:
 
 
 def safe_parse(output_parser: PydanticOutputParser, text: str,
-               prev_response: Optional[OrchestratorAgent4OutpuSchema] = None) -> OrchestratorExtractionSchema:
+               prev_response: Optional[OrchestratorAgent4OutputSchema] = None) -> OrchestratorExtractionSchema:
     """Safely parses LLM output, providing a fallback mechanism that preserves prior state."""
     try:
         # 1. Attempt to parse the new LLM output directly
