@@ -52,8 +52,8 @@ extraction_prompt = ChatPromptTemplate.from_messages(
                - Extract the `trip_duration` (e.g., '5 days', '2 weeks') if provided. **Do NOT apply any date validation here.**
                - **If trip duration and trip start date are provided, you MUST extract both and set end_date to null/raw text.** The subsequent logic will calculate the end date.
 
-            3. **Travelers Extraction (Improved):**
-               - Extract as an integer. You MUST be able to infer this from words like **'solo trip' (1), 'dual trip' or 'couple' (2), or 'family of X' (X)**. If not provided, set `"no_of_traveler": null`.
+                3. **Travelers Extraction (Improved):**
+                    - Extract as an integer. You MUST be able to infer this from words like **'solo trip' (1), 'dual trip' or 'couple' (2), or 'family of X' (X)**. Do NOT assume a generic "family" means 4 people. If the user only says "family" or the count is ambiguous, set `"no_of_traveler": null` so we can follow up and ask for the exact number.
 
             4. **Season (For LLM only):**
                - If dates are given, infer the season based on Sri Lanka’s climate (May–Sept: SW Monsoon, Oct–Jan: NE Monsoon, Feb–April: Inter-monsoon).

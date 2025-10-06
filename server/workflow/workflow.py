@@ -156,7 +156,7 @@ if __name__ == "__main__":
 
     print("\n\n--- DEMO ---")
     state = run_conversation(
-        "What are the best locations to visit in Sri Lanka in late October for a family of four who love the beach and mountains?")
+    "What are the best locations to visit in Sri Lanka in late October for a family who love the beach and mountains?")
     print(f"ASSISTANT: {state['final_response']}")
 
     # # --- INTERACTIVE DEMO ---
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # # 1. Start a conversation (triggers full planning)
     # print("\n\n--- DEMO 1: Initiate Planning ---")
     # state = run_conversation(
-    #     "I want to plan an amazing trip for my family of four next summer. We love the beach and mountains.")
+    #     "I want to plan an amazing trip for my family next summer. We love the beach and mountains.")
     # print(f"ASSISTANT: {state['final_response']}")
     #
     # # 2. User provides missing info (Destination)
