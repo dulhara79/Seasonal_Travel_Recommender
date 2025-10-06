@@ -1,5 +1,6 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext();
 
@@ -9,6 +10,11 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  // Inactivity timeout (ms). Default: 30 minutes. Can be overridden.
+  const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+  const inactivityTimer = useRef(null);
 
   // --- Authenticated API Instance ---
   const api = axios.create({
@@ -21,6 +27,23 @@ export const AuthProvider = ({ children }) => {
     }
     return config;
   });
+  // Intercept 401 responses and auto-logout
+  api.interceptors.response.use(
+    (r) => r,
+    (error) => {
+      if (error?.response?.status === 401) {
+        // Token invalid or expired -> force logout
+        logout();
+        // Redirect to login
+        try {
+          navigate('/auth');
+        } catch (e) {
+          /* ignore if navigate not available */
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
   // ----------------------------------
 
   // --- Auth Logic ---
@@ -43,6 +66,43 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, [token]);
 
+  // ---------------------- Inactivity handling ----------------------
+  const resetInactivityTimer = () => {
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+    if (token) {
+      inactivityTimer.current = setTimeout(() => {
+        // On timeout, log the user out and navigate to auth
+        logout();
+        try {
+          navigate('/auth');
+        } catch (e) {
+          /* ignore navigation errors */
+        }
+      }, INACTIVITY_TIMEOUT);
+    }
+  };
+
+  useEffect(() => {
+    // Activity events that indicate the user is active
+    const events = ["click", "mousemove", "keydown", "scroll", "touchstart"];
+
+    const handleActivity = () => resetInactivityTimer();
+
+    events.forEach((ev) => window.addEventListener(ev, handleActivity));
+
+    // Start or clear the timer when token changes
+    resetInactivityTimer();
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, handleActivity));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+  // -----------------------------------------------------------------
+
   const login = async (username, password) => {
     const params = new URLSearchParams();
     params.append("username", username);
@@ -61,6 +121,17 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     localStorage.removeItem("token");
+    // Clear inactivity timer on logout
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = null;
+    }
+    // Navigate to login page
+    try {
+      navigate('/auth');
+    } catch (e) {
+      /* ignore navigation errors when used outside router context */
+    }
   };
 
   // --- Conversation Persistence Functions (using the 'api' instance) ---
