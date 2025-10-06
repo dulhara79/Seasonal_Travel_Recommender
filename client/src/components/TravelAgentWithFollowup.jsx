@@ -6,8 +6,11 @@ function App() {
   const [conversation, setConversation] = useState([]);
   const [followupAnswers, setFollowupAnswers] = useState({});
 
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+    const API_URL = `${API_BASE_URL}/travel`;
+
   const sendQuery = async (q = query, answers = followupAnswers) => {
-    const res = await axios.post("http://localhost:8000/api/travel", {
+    const res = await axios.post(API_URL, {
       query: q,
       followup_answers: answers,
     });
