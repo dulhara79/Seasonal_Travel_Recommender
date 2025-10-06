@@ -56,6 +56,28 @@ def _parse_traveler_from_text(text: str) -> Optional[int]:
         return 1
     if 'dual' in text_lower or 'couple' in text_lower or 'two people' in text_lower:
         return 2
+    # Map common number words to digits (helps with phrases like 'family of three')
+    num_word_map = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+    }
+
+    # Look for explicit "family of X" or similar constructions
+    fam_match = re.search(r'family\s*(?:of|with)?\s*(\w+)', text_lower)
+    if fam_match:
+        fam_num = fam_match.group(1)
+        # numeric string
+        if fam_num.isdigit():
+            try:
+                num = int(fam_num)
+                if num > 0:
+                    return num
+            except ValueError:
+                pass
+        # word number
+        if fam_num in num_word_map:
+            return num_word_map[fam_num]
+
     match = re.search(r'(\d+)', text_lower)
     if match:
         try:
@@ -341,11 +363,14 @@ def validate_and_correct_trip_data(
 
     # --- 4. DATE VALIDATION (Now working with potentially calculated dates) ---
 
-    # Reset dates if they are past/present. Keep original parsed values in temp vars
+    # Reset dates if they are past/present or unreasonably far in the future.
     for dt_key, dt_val in [("start_date", start_dt), ("end_date", end_dt)]:
-        if dt_val and dt_val <= CURRENT_DATE:
+        if not dt_val:
+            continue
+
+        # Past or today -> ask for a future date
+        if dt_val <= CURRENT_DATE:
             print(f"Validation: {dt_key.capitalize()} {dt_val} is past/present. Setting to null.")
-            # Do not overwrite json_response yet; update temp vars
             if dt_key == "start_date":
                 start_dt = None
             if dt_key == "end_date":
@@ -354,7 +379,25 @@ def validate_and_correct_trip_data(
             messages.append({
                 "type": "warning",
                 "field": dt_key,
-                "message": f"The provided {dt_key.replace('_', ' ')} is in the past or today. Please choose a future date."
+                "message": f"The {dt_key.replace('_', ' ')} you provided ({dt_val.isoformat()}) is in the past or today. Could you provide a future date?"
+            })
+
+        # Unreasonably far future -> politely ask for a nearer date
+        elif dt_val > MAX_FUTURE_DATE:
+            print(f"Validation: {dt_key.capitalize()} {dt_val} is too far in the future. Setting to null.")
+            if dt_key == "start_date":
+                start_dt = None
+            if dt_key == "end_date":
+                end_dt = None
+
+            max_date_friendly = MAX_FUTURE_DATE.strftime('%B %d, %Y')
+            messages.append({
+                "type": "warning",
+                "field": dt_key,
+                "message": (
+                    f"The {dt_key.replace('_', ' ')} you provided ({dt_val.isoformat()}) is too far in the future. "
+                    f"Please choose a date on or before {max_date_friendly} so I can provide realistic recommendations."
+                )
             })
 
     # Check if end date is before start date
