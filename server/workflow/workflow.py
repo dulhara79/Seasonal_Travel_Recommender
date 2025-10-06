@@ -19,7 +19,7 @@ from server.workflow.agent_nodes import (
     simple_packing_node,
     explorer_agent_node
 )
-from server.schemas.orchestrator_schemas import OrchestratorAgent4OutpuSchema
+from server.schemas.orchestrator_schemas import OrchestratorAgent4OutputSchema
 
 
 # --- 1. Graph Definition ---
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                 "intent": None,
                 # FIX 1: Store the Pydantic object instance, not its dictionary representation.
                 # Use .model_dump() for dictionary conversion if needed elsewhere (like state.update).
-                "trip_data": OrchestratorAgent4OutpuSchema(),
+                "trip_data": OrchestratorAgent4OutputSchema(),
                 "location_recs": None,
                 "activity_recs": None,
                 "packing_recs": None,
