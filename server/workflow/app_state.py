@@ -1,7 +1,7 @@
 # app_state.py
 
 from typing import TypedDict, List, Tuple, Optional, Any, Dict
-from server.schemas.orchestrator_schemas import OrchestratorAgent4OutpuSchema
+from server.schemas.orchestrator_schemas import OrchestratorAgent4OutputSchema
 from server.schemas.location_agent_schemas import LocationAgentOutputSchema
 
 
@@ -32,7 +32,7 @@ class TripPlanState(TypedDict):
 
     # === Planning Data (Structured Schemas) ===
     # This stores the mandatory, validated planning data
-    trip_data: Optional[OrchestratorAgent4OutpuSchema]
+    trip_data: Optional[OrchestratorAgent4OutputSchema]
 
     # === Recommendation Data (Structured Schemas) ===
     location_recs: Optional[LocationAgentOutputSchema]  # Output from Location Agent
