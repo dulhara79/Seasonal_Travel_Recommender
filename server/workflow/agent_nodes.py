@@ -287,7 +287,7 @@ def orchestrator_node(state: TripPlanState) -> Dict[str, Any]:
         final_data_pydantic = call_orchestrator_agent(orchestrator_input, user_responses=[])
 
     # Update State. Convert the returned Pydantic object to a dictionary for LangGraph's TypedDict state update.
-    # The orchestrator agent returns a Pydantic object (OrchestratorAgent4OutpuSchema).
+    # The orchestrator agent returns a Pydantic object (OrchestratorAgent4OutputSchema).
     # We store the Pydantic object itself in the state to maintain type integrity.
     state['trip_data'] = final_data_pydantic
 
