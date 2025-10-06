@@ -3,7 +3,8 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_BASE_URL = "https://huggingface.co/spaces/dulharakaushalya/seasonal-travel-recommender-backend/api";
+// Prefer Vite env var so the frontend can target different backends in prod/dev
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -43,7 +44,8 @@ const AuthForm = () => {
       if (isLogin) {
         await login(form.username, form.password);
       } else {
-        const res = await axios.post(`${API_BASE_URL}/auth/register`, form);
+  const registerUrl = `${API_BASE_URL.replace(/\/$/, '')}/api/auth/register`;
+  const res = await axios.post(registerUrl, form);
         setSuccess("Registration successful! Please log in.");
         setForm((prev) => ({ ...prev, password: "" }));
         setIsLogin(true);
