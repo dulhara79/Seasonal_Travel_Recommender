@@ -14,6 +14,7 @@ except Exception:
 # from langchain_openai import ChatOpenAI
 
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
+from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.schemas.summary_schemas import SummaryAgentInputSchema, SummaryAgentOutputSchema
 
 def _get_summary_llm(api_key: str, model_name: str, temperature: float = 0.5):

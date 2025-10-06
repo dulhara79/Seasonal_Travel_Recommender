@@ -46,6 +46,12 @@ class TravelState(BaseModel):
     # From Packing Agent
     packing_list: Optional[PackingOutput] = None
 
+    # From Activity Agent
+    activities: Optional[List] = None
+
+    # From Packing Agent
+    packing: Optional[PackingOutput] = None
+
     # From Summary Agent
     summary: Optional[str] = None
 

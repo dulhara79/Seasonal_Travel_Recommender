@@ -636,6 +636,8 @@ def suggest_activities(inp: dict) -> dict:
     from langchain.schema import HumanMessage
 
     text = ""
+
+    # Primary attempt: use generate with a nested list of HumanMessage objects
     try:
         response = llm.generate([[HumanMessage(content=prompt_text)]])
         gens = getattr(response, "generations", None)
