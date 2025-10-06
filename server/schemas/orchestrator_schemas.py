@@ -14,7 +14,7 @@ class OrchestratorAgent4InputSchema(BaseModel):
     """Input state for the Orchestrator Agent."""
     query: str = Field(..., description="The user's latest query or response.")
 
-class OrchestratorAgent4OutpuSchema(BaseModel):
+class OrchestratorAgent4OutputSchema(BaseModel):
     """Final output structure of the Orchestrator Agent's state."""
     destination: Optional[str] = Field(None, description="The travel destination within Sri Lanka.")
     start_date: Optional[str] = Field(None, description="The trip start date (YYYY-MM-DD).")
