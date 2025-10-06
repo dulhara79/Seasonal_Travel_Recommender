@@ -3,7 +3,7 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_BASE_URL = "https://huggingface.co/spaces/dulharakaushalya/seasonal-travel-recommender-backend";
+const API_BASE_URL = "https://huggingface.co/spaces/dulharakaushalya/seasonal-travel-recommender-backend/api";
 
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
