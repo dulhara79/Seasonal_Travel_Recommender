@@ -82,6 +82,10 @@ def _parse_duration(duration_str: Optional[str]) -> Optional[int]:
     if not duration_str:
         return None
 
+    # Accept integers that may have been set by previous validation steps
+    if isinstance(duration_str, int):
+        return duration_str
+
     text_lower = duration_str.lower()
 
     # Handle numeric word to digit conversion for days/weeks/months
@@ -320,6 +324,15 @@ def validate_and_correct_trip_data(
                     "type": "advisory",
                     "field": "end_date",
                     "message": f"End date calculated as {end_dt.isoformat()} based on start date and {trip_duration_days} days duration."
+                })
+                # Add a follow-up confirmation asking the user to confirm the calculated end date
+                # Build friendly date strings without platform-specific directives
+                end_friendly = f"{end_dt.strftime('%B')} {end_dt.day}, {end_dt.year}"
+                start_friendly = f"{start_dt.strftime('%B')} {start_dt.day}, {start_dt.year}"
+                messages.append({
+                    "type": "followup",
+                    "field": "end_date",
+                    "question": f"I calculated {end_friendly} as the end date based on your {trip_duration_days}-day trip starting on {start_friendly}. Is that correct?"
                 })
 
             # **IMPORTANT:** Update the response dict with the resolved/calculated end_dt

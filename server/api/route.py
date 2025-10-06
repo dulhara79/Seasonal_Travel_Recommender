@@ -101,12 +101,15 @@ async def process_query(
             current_state = initial_state_dict
         else:
             # Start a new conversation with base state
+            # NOTE: Do NOT initialize `trip_data` with a Pydantic object set to
+            # 'awaiting_user_input' because the router treats that as an in-progress
+            # orchestrator flow and will force the orchestrator node. Use `None`
+            # to indicate no prior orchestrator extraction has started.
             current_state: TripPlanState = {
                 "user_query": user_query,
                 "chat_history": [],
                 "intent": None,
-                # FIX: Explicitly set the mandatory 'status' field to pass Pydantic validation.
-                "trip_data": OrchestratorAgent4OutpuSchema(status="awaiting_user_input").model_dump(),
+                "trip_data": None,
                 "location_recs": None,
                 "activity_recs": None,
                 "packing_recs": None,
