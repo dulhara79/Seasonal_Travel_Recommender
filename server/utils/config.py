@@ -24,7 +24,17 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 
 # JWT
-JWT_SECRET = os.getenv('JWT_SECRET', 'f4buctOtskxFmHeYIU5ULMXMPujCK8JwBA6olGY02rJ9sekeIh0IFx0sUXOPSJQWiyrekfguyiUTYGFCYIGJHTU5467iyughjft7dygvjgftdr7utyiugvjgcydrytucyfg78tiyuhgfibdjlshiuocgmijrfngviywo8ytcmoilakjòhwgpisoòljdsmogyub')
+# JWT_SECRET = os.getenv('JWT_SECRET', 'f4buctOtskxFmHeYIU5ULMXMPujCK8JwBA6olGY02rJ9sekeIh0IFx0sUXOPSJQWiyrekfguyiUTYGFCYIGJHTU5467iyughjft7dygvjgftdr7utyiugvjgcydrytucyfg78tiyuhgfibdjlshiuocgmijrfngviywo8ytcmoilakjòhwgpisoòljdsmogyub')
+ENV = os.getenv('ENV', 'development').lower()
+_DEFAULT_JWT_SECRET = 'f4buctOtskxFmHeYIU5ULMXMPujCK8JwBA6olGY02rJ9sekeIh0IFx0sUXOPSJQWiyrekfguyiUTYGFCYIGJHTU5467iyughjft7dygvjgftdr7utyiugvjgcydrytucyfg78tiyuhgfibdjlshiuocgmijrfngviywo8ytcmoilakjòhwgpisoòljdsmogyub'
+JWT_SECRET = os.getenv('JWT_SECRET')
+if not JWT_SECRET:
+    if ENV == 'development':
+        JWT_SECRET = _DEFAULT_JWT_SECRET
+        # Optionally, print a warning
+        print("Warning: Using default JWT secret in development environment.")
+    else:
+        raise RuntimeError("JWT_SECRET environment variable must be set in production environment.")
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '60'))
 
