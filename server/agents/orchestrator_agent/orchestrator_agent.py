@@ -13,7 +13,7 @@ from langchain.chains import LLMChain
 from server.utils.config import OPENAI_API_KEY, OPENAI_MODEL
 from server.utils.text_security import sanitize_input
 from server.schemas.orchestrator_schemas import (
-    OrchestratorAgent4OutpuSchema,
+    OrchestratorAgent4OutputSchema,
     OrchestratorAgent4InputSchema,
     OrchestratorExtractionSchema
 )
@@ -116,8 +116,8 @@ def create_followup_questions(json_response: dict, missing_fields: list) -> dict
 def run_llm_agent(
         state: OrchestratorAgent4InputSchema,
         chat_history: List = None,
-        prev_response_pydantic: Optional[OrchestratorAgent4OutpuSchema] = None
-) -> OrchestratorAgent4OutpuSchema:
+        prev_response_pydantic: Optional[OrchestratorAgent4OutputSchema] = None
+) -> OrchestratorAgent4OutputSchema:
     """Executes the core LLM extraction and applies post-extraction validation/correction."""
     if chat_history is None:
         chat_history = []
@@ -129,7 +129,7 @@ def run_llm_agent(
         # Cannot extract structured data from a long text flag.
         print("INFO: Orchestrator received LONG_INPUT_STORED flag. Cannot process structured extraction.")
 
-        final_response = OrchestratorAgent4OutpuSchema(
+        final_response = OrchestratorAgent4OutputSchema(
             status="awaiting_user_input",
             messages=[{
                 "type": "warning",
@@ -165,8 +165,8 @@ def run_llm_agent(
         json_response['status'] = "awaiting_user_input"
 
     # 4. Final Conversion and Message Handling
-    final_response = OrchestratorAgent4OutpuSchema(**{
-        k: v for k, v in json_response.items() if k in OrchestratorAgent4OutpuSchema.model_fields
+    final_response = OrchestratorAgent4OutputSchema(**{
+        k: v for k, v in json_response.items() if k in OrchestratorAgent4OutputSchema.model_fields
     })
 
     final_response.messages.extend(messages)
@@ -185,7 +185,7 @@ def call_orchestrator_agent(
         state: OrchestratorAgent4InputSchema,
         user_responses: List[str] = None,
         prev_json_response: Optional[Dict[str, Any]] = None
-) -> OrchestratorAgent4OutpuSchema:
+) -> OrchestratorAgent4OutputSchema:
     """
     Main function for the orchestrator, handles initial extraction and follow-up
     questions for mandatory fields.
@@ -219,7 +219,7 @@ def call_orchestrator_agent(
             }
             json_response["status"] = "awaiting_user_input"
             json_response.setdefault("messages", []).append(retrack_message)
-            return OrchestratorAgent4OutpuSchema(**json_response)
+            return OrchestratorAgent4OutputSchema(**json_response)
 
     while True:
         # Re-evaluate missing fields based on the current state
@@ -353,7 +353,7 @@ def call_orchestrator_agent(
                 "field": missing_field,
                 "question": question,
             })
-            return OrchestratorAgent4OutpuSchema(**json_response)
+            return OrchestratorAgent4OutputSchema(**json_response)
 
     # Return the complete state
-    return OrchestratorAgent4OutpuSchema(**json_response)
+    return OrchestratorAgent4OutputSchema(**json_response)
