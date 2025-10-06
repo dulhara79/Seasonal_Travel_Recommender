@@ -316,6 +316,22 @@ def call_orchestrator_agent(
             current_state, messages = validate_and_correct_trip_data(current_state, sanitized_query)
             current_state.setdefault("messages", []).extend(messages)
 
+            # EXTRA SAFETY: If the user just provided a start_date or trip_duration and
+            # an end_date is still missing, attempt one more explicit calculation so the
+            # orchestrator will not prompt the user for an end_date when duration is known.
+            try:
+                needs_end = (current_state.get("start_date") and not current_state.get("end_date") and
+                             current_state.get("trip_duration"))
+                if needs_end:
+                    # The validator should already have set end_date, but do one more pass
+                    # in case of merging/preservation issues elsewhere.
+                    current_state, more_msgs = validate_and_correct_trip_data(current_state, sanitized_query)
+                    current_state.setdefault("messages", []).extend(more_msgs)
+            except Exception:
+                # Do not raise for this best-effort calculation; fall through and let
+                # the normal follow-up logic ask the question if calculation fails.
+                pass
+
             return current_state
 
         if user_responses:
