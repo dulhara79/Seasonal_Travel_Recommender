@@ -53,6 +53,4 @@ pnpm-lock.yaml
 *.jpeg
 *.gif
 *.svg
-*.ico
 *.webp
-/public/favicon_io
