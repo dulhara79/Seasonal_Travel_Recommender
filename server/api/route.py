@@ -11,7 +11,7 @@ from pydantic import ValidationError  # Added to catch schema errors
 from server.api.auth import get_current_user
 from server.workflow.workflow import build_trip_workflow
 from server.workflow.app_state import TripPlanState
-from server.schemas.orchestrator_schemas import OrchestratorAgent4OutpuSchema  # For initial state
+from server.schemas.orchestrator_schemas import OrchestratorAgent4OutputSchema  # For initial state
 from server.schemas.location_agent_schemas import LocationAgentOutputSchema  # For serialization check
 
 router = APIRouter(tags=["plan"])
@@ -40,7 +40,7 @@ def _serialize_state_for_api(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Key fields that might hold Pydantic models based on TripPlanState definition
     pydantic_fields = {
-        "trip_data": OrchestratorAgent4OutpuSchema,
+        "trip_data": OrchestratorAgent4OutputSchema,
         "location_recs": LocationAgentOutputSchema,
         # Add other structured fields here (activity_recs, packing_recs) if they use Pydantic models
     }
