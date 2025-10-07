@@ -1,131 +1,165 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
+// Removed: import { getTravelRecommendation } from '../../GradioRecommenderService';
 import { useAuth } from "../contexts/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-// Custom Confirmation Modal Component
-const ConfirmModal = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  type = "danger",
-}) => {
-  if (!isOpen) return null;
+// --- START: Custom Confirmation Modal Component (ConfirmModal) ---
+/**
+ * Custom Confirmation Modal Component
+ * Uses forwardRef to allow the component to be focused when opened,
+ * which is good for accessibility, though not strictly required here.
+ */
+const ConfirmModal = forwardRef(
+  ({ isOpen, onClose, onConfirm, title, message, type = "danger" }, ref) => {
+    if (!isOpen) return null;
 
-  const colors = {
-    danger: {
-      gradient: "from-red-500 to-rose-600",
-      button: "from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700",
-      icon: (
-        <svg
-          className="w-16 h-16 text-red-500"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          />
-        </svg>
-      ),
-    },
-    warning: {
-      gradient: "from-amber-500 to-orange-600",
-      button:
-        "from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700",
-      icon: (
-        <svg
-          className="w-16 h-16 text-amber-500"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-      ),
-    },
-  };
+    const colors = useMemo(
+      () => ({
+        danger: {
+          gradient: "from-red-500 to-rose-600",
+          button:
+            "from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700",
+          icon: (
+            <svg
+              className="w-16 h-16 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          ),
+        },
+        warning: {
+          gradient: "from-amber-500 to-orange-600",
+          button:
+            "from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700",
+          icon: (
+            <svg
+              className="w-16 h-16 text-amber-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          ),
+        },
+      }),
+      []
+    );
 
-  const theme = colors[type];
+    const theme = colors[type];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    return (
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      ></div>
-      <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full transform animate-scale-in overflow-hidden">
-        <div className={`h-2 bg-gradient-to-r ${theme.gradient}`}></div>
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden="true"
+        ></div>
+        {/* Modal Content */}
+        <div
+          ref={ref}
+          className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full transform animate-scale-in overflow-hidden"
+          tabIndex="-1"
+        >
+          <div className={`h-2 bg-gradient-to-r ${theme.gradient}`}></div>
 
-        <div className="p-8">
-          <div className="flex flex-col items-center text-center">
-            <div className="mb-6 transform animate-bounce-gentle">
-              {theme.icon}
-            </div>
+          <div className="p-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-6 transform animate-bounce-gentle">
+                {theme.icon}
+              </div>
 
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">{title}</h3>
-
-            <p className="text-gray-600 mb-8 leading-relaxed">{message}</p>
-
-            <div className="flex gap-3 w-full">
-              <button
-                onClick={onClose}
-                className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+              <h3
+                id="modal-title"
+                className="text-2xl font-bold text-gray-900 mb-3"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onConfirm();
-                  onClose();
-                }}
-                className={`flex-1 px-6 py-3 bg-gradient-to-r ${theme.button} text-white rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105`}
-              >
-                Confirm
-              </button>
+                {title}
+              </h3>
+
+              <p className="text-gray-600 mb-8 leading-relaxed">{message}</p>
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onConfirm();
+                    onClose();
+                  }}
+                  className={`flex-1 px-6 py-3 bg-gradient-to-r ${theme.button} text-white rounded-xl font-semibold shadow-lg transition-all duration-300 transform hover:scale-105`}
+                >
+                  Confirm
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+);
+ConfirmModal.displayName = "ConfirmModal";
+// --- END: Custom Confirmation Modal Component (ConfirmModal) ---
 
-// Markdown Renderer Component
+// --- START: Markdown Renderer Component (MarkdownRenderer) ---
+/**
+ * Renders markdown content with Tailwind CSS and custom component styling.
+ * @param {object} props - The component props.
+ * @param {string} props.content - The markdown content string.
+ */
 const MarkdownRenderer = ({ content }) => {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       className="prose prose-sm max-w-none text-gray-800 break-words"
       components={{
+        // Customize H1 for a more themed look
         h1: ({ node, ...props }) => (
           <h1
             className="text-xl font-extrabold mt-4 mb-2 border-b border-emerald-200 pb-1 text-emerald-700"
             {...props}
           />
         ),
+        // Customize H2
         h2: ({ node, ...props }) => (
           <h2
             className="text-lg font-bold mt-3 mb-1 text-emerald-600"
             {...props}
           />
         ),
+        // Customize Unordered List
         ul: ({ node, ...props }) => (
           <ul className="list-disc list-inside space-y-1 pl-4" {...props} />
         ),
+        // Customize Ordered List
         ol: ({ node, ...props }) => (
           <ol className="list-decimal list-inside space-y-1 pl-4" {...props} />
         ),
+        // Customize Paragraphs
         p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
       }}
     >
@@ -133,8 +167,11 @@ const MarkdownRenderer = ({ content }) => {
     </ReactMarkdown>
   );
 };
+// --- END: Markdown Renderer Component (MarkdownRenderer) ---
 
+// --- START: Main Chat Interface Component (ChatInterface) ---
 const ChatInterface = () => {
+  // Destructure auth context functions and state
   const {
     user,
     api,
@@ -148,11 +185,13 @@ const ChatInterface = () => {
     deleteAccount,
   } = useAuth();
 
+  // State management
   const [conversations, setConversations] = useState([]);
   const [currentConvId, setCurrentConvId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [previousState, setPreviousState] = useState(null);
+  // Renamed to `currentState` to reflect its nature as the state *for the next* query
+  const [currentState, setCurrentState] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [processingLastNode, setProcessingLastNode] = useState(null);
   const [processingSteps, setProcessingSteps] = useState([]);
@@ -164,63 +203,92 @@ const ChatInterface = () => {
     type: "",
     data: null,
   });
+
+  // Refs
   const messagesEndRef = useRef(null);
 
-  const scrollToBottom = () =>
+  // Effect to scroll to the bottom when messages update
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  useEffect(scrollToBottom, [messages]);
-
+  // Effect to set mounted state for animations
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Function to fetch and set conversations list
   const loadConversations = async () => {
     try {
       const list = await getConversationsList();
       setConversations(list);
     } catch (error) {
       console.error("Error loading conversations:", error);
+      // Optional: Show a user-facing error notification
     }
   };
 
+  // Initial load of conversations
   useEffect(() => {
-    loadConversations();
-  }, [user]);
+    // Only load if user is available (meaning auth is complete)
+    if (user) {
+      loadConversations();
+    }
+  }, [user]); // Depend on user to ensure it runs after login
 
+  /**
+   * Starts a new conversation/trip.
+   */
   const startNewTrip = async () => {
-    const newConv = await startNewConversation("New Trip");
-    setCurrentConvId(newConv.id);
-    setMessages([]);
-    setPreviousState(null);
-    setInput("");
-    loadConversations();
+    try {
+      const newConv = await startNewConversation("New Trip");
+      setCurrentConvId(newConv.id);
+      setMessages([]);
+      setCurrentState(null); // Reset state for a new conversation
+      setInput("");
+      loadConversations(); // Reload sidebar list to show the new conversation
+    } catch (error) {
+      console.error("Failed to start new trip:", error);
+    }
   };
 
+  /**
+   * Computes a friendly title for a new conversation based on the user's query.
+   * @param {string} q - The user's query.
+   * @returns {string} - The computed title.
+   */
   const computeTitleFromQuery = (q) => {
     if (!q || !q.trim()) return "New Trip";
     const txt = q.trim();
+    // Regex to find "to [destination]"
     const toMatch = txt.match(
-      /\bto\s+([A-Za-z0-9 \-\'']{2,60}?)(?:\s+(?:for|in|during|with|on|$))/i
+      /\bto\s+([A-Za-z0-9 \-'']{2,60}?)(?:\s+(?:for|in|during|with|on|$))/i
     );
     if (toMatch && toMatch[1]) {
       let dest = toMatch[1].trim();
       dest = dest.replace(/[.,;!?)]+$/g, "");
+      // Capitalize first letter of each word
       dest = dest
         .split(/\s+/)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
+      // Regex to find group type (family, solo, etc.)
       const pplMatch = txt.match(
         /\b(family|couple|solo|group|friends|\d+\s*(people|persons|travellers|travelers|kids|children))\b/i
       );
       const suffix = pplMatch ? ` — ${pplMatch[0]}` : "";
       return `Trip to ${dest}${suffix}`.slice(0, 100);
     }
+    // Fallback: take the first 6 words
     const words = txt.split(/\s+/).slice(0, 6).join(" ");
     const short = words.replace(/[\n\r]/g, " ").replace(/["'`]/g, "");
     return (short.charAt(0).toUpperCase() + short.slice(1)).slice(0, 100);
   };
 
+  /**
+   * Loads an existing conversation by ID.
+   * @param {string} convId - The ID of the conversation to load.
+   */
   const loadTrip = async (convId) => {
     setCurrentConvId(convId);
     try {
@@ -230,30 +298,34 @@ const ChatInterface = () => {
         text: msg.text,
         isUser: msg.role === "user",
         timestamp: msg.timestamp,
-        // The savedState is a custom field you must have saved when appending the message
-        savedState: msg.state,
+        savedState: msg.state, // `msg.state` is the state saved on the server
       }));
 
-      // --- NEW LOGIC: Extract the latest saved state ---
+      // Find the state from the *most recent assistant message*
       const lastAssistantMessage = loadedMessages
-        .slice() // create a copy
+        .slice()
         .reverse()
         .find((msg) => msg.role === "assistant");
 
-      // If a state was saved on the last assistant message, use it to continue the conversation
+      // Set the state for the *next* query
       const lastSavedState = lastAssistantMessage?.savedState || null;
-      // ----------------------------------------------------
 
       setMessages(loadedMessages);
-      setPreviousState(lastSavedState); // Use the loaded state for the next query
+      setCurrentState(lastSavedState); // Use the loaded state for the next query
       setInput("");
     } catch (error) {
       console.error("Failed to load trip:", error);
+      // Fallback: start a new trip if the old one fails to load
       startNewTrip();
     }
   };
 
-  const handleDeleteTrip = async (convId, event) => {
+  /**
+   * Handler for showing the delete trip confirmation modal.
+   * @param {string} convId - The ID of the trip to delete.
+   * @param {object} event - The click event.
+   */
+  const handleDeleteTrip = (convId, event) => {
     event.stopPropagation();
     setConfirmModal({
       isOpen: true,
@@ -262,14 +334,18 @@ const ChatInterface = () => {
     });
   };
 
+  /**
+   * Confirms and executes the deletion of a trip.
+   */
   const confirmDeleteTrip = async () => {
     const convId = confirmModal.data;
     try {
       await deleteConversation(convId);
       if (currentConvId === convId) {
+        // Clear chat if the currently viewed trip was deleted
         setCurrentConvId(null);
         setMessages([]);
-        setPreviousState(null);
+        setCurrentState(null);
       }
       await loadConversations();
     } catch (error) {
@@ -277,7 +353,10 @@ const ChatInterface = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
+  /**
+   * Handler for showing the delete account confirmation modal.
+   */
+  const handleDeleteAccount = () => {
     setConfirmModal({
       isOpen: true,
       type: "deleteAccount",
@@ -285,15 +364,21 @@ const ChatInterface = () => {
     });
   };
 
+  /**
+   * Confirms and executes the deletion of the user account.
+   */
   const confirmDeleteAccount = async () => {
     try {
       await deleteAccount();
-      logout();
+      logout(); // Log out after successful deletion
     } catch (error) {
       console.error("Failed to delete account:", error);
     }
   };
 
+  /**
+   * Handles the submission of a new chat message.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -306,32 +391,29 @@ const ChatInterface = () => {
       timestamp: new Date().toISOString(),
     };
 
+    // 1. Update UI immediately with user message
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
       let activeConvId = currentConvId;
+
+      // 2. Start new conversation if none is active
       if (!activeConvId) {
         const title = computeTitleFromQuery(query);
         const newConv = await startNewConversation(title);
         activeConvId = newConv.id;
         setCurrentConvId(activeConvId);
-        setConversations((prev) => {
-          try {
-            const exists = prev.some((c) => c.id === newConv.id);
-            if (exists)
-              return prev.map((c) => (c.id === newConv.id ? newConv : c));
-            return [newConv, ...(prev || [])];
-          } catch (e) {
-            return prev || [];
-          }
-        });
+        // Optimistic update of conversations list, then force a reload
+        setConversations((prev) => [newConv, ...(prev || [])]);
         loadConversations();
       }
 
+      // 3. Save user message to the server
       await appendChatMessage(activeConvId, userMessage.role, userMessage.text);
 
+      // 4. Update title if it's still the default ("New Trip")
       try {
         const serverConv = await fetchConversationById(activeConvId);
         if (!serverConv.title || serverConv.title === "New Trip") {
@@ -348,44 +430,52 @@ const ChatInterface = () => {
         console.debug("Could not update conversation title:", err);
       }
 
+      // 5. Call the recommender API
       const payload = {
         query: query,
-        previous_state: previousState,
+        previous_state: currentState, // Send the previous state
       };
 
       const res = await api.post("/query", payload);
       const botResponseText = res.data.response;
+      const newState = res.data.current_state || {};
 
       const botMessage = {
         role: "assistant",
         text: botResponseText,
         isUser: false,
         timestamp: new Date().toISOString(),
+        savedState: newState, // Add the state to the message object for loading
       };
 
-      const cs = res.data.current_state || {};
-      setPreviousState(cs);
-      if (cs._processing_last_node)
-        setProcessingLastNode(cs._processing_last_node);
-      if (Array.isArray(cs._processing_steps))
-        setProcessingSteps(cs._processing_steps.slice(-10));
+      // 6. Update local state
+      setCurrentState(newState); // Set the new state for the next query
+      // Extract optional processing data
+      if (newState._processing_last_node)
+        setProcessingLastNode(newState._processing_last_node);
+      if (Array.isArray(newState._processing_steps))
+        setProcessingSteps(newState._processing_steps.slice(-10)); // Keep only the last 10 steps
 
+      // 7. Update UI with bot message
       setMessages((prev) => [...prev, botMessage]);
 
+      // 8. Save bot message and new state to the server
       await appendChatMessage(
         activeConvId,
         botMessage.role,
         botMessage.text,
-        res.data.current_state
+        newState // Send the new state to be saved with the bot message
       );
     } catch (error) {
       console.error("API Error:", error);
+      // Display a user-friendly error message
       setMessages((prev) => [
         ...prev,
         {
           role: "error",
           text: "Sorry, I ran into an error. Please try again.",
           isUser: false,
+          timestamp: new Date().toISOString(),
         },
       ]);
     } finally {
@@ -393,6 +483,11 @@ const ChatInterface = () => {
     }
   };
 
+  /**
+   * Formats an ISO string timestamp into a local time string.
+   * @param {string} isoString - The ISO timestamp string.
+   * @returns {string} - The formatted time string.
+   */
   const formatTimestamp = (isoString) => {
     if (!isoString) return "Just now";
     return new Date(isoString).toLocaleTimeString([], {
@@ -401,8 +496,10 @@ const ChatInterface = () => {
     });
   };
 
+  // --- Render ---
   return (
     <div className="flex h-screen antialiased text-gray-800 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 relative overflow-hidden">
+      {/* Custom Styles/Keyframes */}
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
@@ -649,7 +746,7 @@ const ChatInterface = () => {
             )}
           </div>
 
-          {/* Settings Footer (replaces Delete Account button) */}
+          {/* Settings Footer */}
           <div className="flex items-center justify-center mt-auto pt-4 border-t border-emerald-200/50 relative">
             <div className="relative">
               <button
@@ -679,9 +776,9 @@ const ChatInterface = () => {
                 <span className="hidden sm:inline">Settings</span>
               </button>
 
-              {/* Absolute popover so it doesn't move layout when opened */}
+              {/* Settings Popover */}
               {settingsOpen && (
-                <div className="absolute left-0 bottom-14 w-64 bg-white rounded-2xl shadow-xl border border-emerald-100 p-3 z-50">
+                <div className="absolute left-0 bottom-14 w-64 bg-white rounded-2xl shadow-xl border border-emerald-100 p-3 z-50 animate-fade-in animate-scale-in">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-sm font-semibold text-gray-700">
                       Settings
@@ -724,8 +821,6 @@ const ChatInterface = () => {
               )}
             </div>
           </div>
-
-          {/* (Floating settings block removed to avoid duplication) */}
         </div>
 
         {/* Main Chat Area */}
@@ -752,7 +847,7 @@ const ChatInterface = () => {
 
           <div className="flex flex-col flex-auto flex-shrink-0 rounded-3xl bg-white/70 backdrop-blur-xl h-full p-6 shadow-2xl border border-white/30">
             {/* Messages Container */}
-            <div className="flex flex-col h-full overflow-x-auto mb-4">
+            <div className="flex flex-col h-full overflow-y-auto mb-4">
               <div className="flex flex-col h-full">
                 {messages.length === 0 && (
                   <div className="flex items-center justify-center h-full text-gray-600 flex-col animate-fade-in-up">
@@ -839,125 +934,71 @@ const ChatInterface = () => {
                     </div>
                   </div>
                 ))}
-
+                {/* Typing/Loading Indicator */}
                 {isLoading && (
-                  <div className="flex justify-start mb-4 animate-fade-in-up">
-                    <div className="bg-white/90 backdrop-blur-sm text-gray-800 rounded-3xl rounded-bl-md px-5 py-4 shadow-lg border border-emerald-100 max-w-xs">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse-subtle"></div>
-                          <div
-                            className="w-2 h-2 bg-teal-500 rounded-full animate-pulse-subtle"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
-                          <div
-                            className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse-subtle"
-                            style={{ animationDelay: "0.4s" }}
-                          ></div>
-                        </div>
-                        <span className="text-sm text-gray-600">
-                          Planning your journey...
-                        </span>
+                  <div className="flex justify-start mb-4">
+                    <div className="flex flex-col max-w-2xl bg-white/90 backdrop-blur-sm text-gray-800 rounded-3xl rounded-bl-md border border-emerald-100 px-5 py-4 shadow-lg animate-pulse-subtle">
+                      <div className="flex space-x-2">
+                        <div
+                          className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                          style={{ animationDelay: "0s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.4s" }}
+                        ></div>
                       </div>
-                      {processingLastNode && (
-                        <div className="text-xs text-gray-500 mt-2 flex items-center space-x-1">
-                          <svg
-                            className="w-3 h-3"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span>Agent: {processingLastNode}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
+                {/* Scroll Anchor */}
                 <div ref={messagesEndRef} />
               </div>
             </div>
 
-            {/* Input Box */}
-            <div className="flex flex-row items-center rounded-2xl bg-white/90 shadow-lg border-2 border-emerald-200/50 p-2 transition-all duration-300 focus-within:border-emerald-400 focus-within:shadow-xl">
-              <div className="flex-grow ml-2">
-                <form
-                  onSubmit={handleSubmit}
-                  className="flex w-full items-center"
-                >
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={
-                      isLoading
-                        ? "Processing your request..."
-                        : "Ask me anything about Sri Lanka..."
-                    }
-                    disabled={isLoading}
-                    className="flex w-full border-none focus:outline-none text-gray-700 placeholder-gray-400 p-2 bg-transparent"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading || !input.trim()}
-                    className={`ml-2 flex items-center justify-center rounded-xl p-3 transition-all duration-300 ${
-                      isLoading || !input.trim()
-                        ? "text-gray-300 cursor-not-allowed"
-                        : "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 shadow-lg hover:shadow-xl transform hover:scale-105"
-                    }`}
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+            {/* Chat Input Area */}
+            <div className="flex flex-row items-center">
+              <div className="flex-grow ml-4">
+                <form onSubmit={handleSubmit}>
+                  <div className="relative flex w-full">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      disabled={isLoading}
+                      placeholder={
+                        isLoading
+                          ? "AI is typing..."
+                          : "Plan a trip or ask a question..."
+                      }
+                      className="flex w-full border border-emerald-300 rounded-3xl focus:outline-none focus:border-emerald-500 pl-4 h-12 text-sm transition-all duration-300 disabled:bg-gray-50 disabled:text-gray-500 pr-16 shadow-inner"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!input.trim() || isLoading}
+                      className={`absolute right-1 top-1/2 transform -translate-y-1/2 p-2 rounded-full text-white transition-all duration-300 shadow-md
+                        ${
+                          !input.trim() || isLoading
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 hover:scale-105"
+                        }`}
+                      title="Send Message"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-5 h-5 transform rotate-90"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                      </svg>
+                    </button>
+                  </div>
                 </form>
               </div>
-
-              {/* Processing Steps Log */}
-              {processingSteps && processingSteps.length > 0 && (
-                <div className="ml-2 pr-2">
-                  <details className="text-xs text-gray-500">
-                    <summary className="cursor-pointer hover:text-emerald-600 transition-colors font-medium">
-                      Debug ({processingSteps.length})
-                    </summary>
-                    <div className="absolute right-4 bottom-20 max-h-64 overflow-y-auto mt-2 p-3 bg-white rounded-xl shadow-xl border border-emerald-100 w-80 z-50">
-                      {processingSteps
-                        .slice()
-                        .reverse()
-                        .map((s, i) => (
-                          <div
-                            key={i}
-                            className="border-b border-gray-100 py-2 last:border-b-0"
-                          >
-                            <div className="font-mono text-xs text-gray-500">
-                              {s.timestamp}
-                            </div>
-                            <div className="text-sm text-gray-700 mt-1">
-                              <span className="font-semibold text-emerald-600">
-                                {s.node}:
-                              </span>{" "}
-                              {s.note}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </details>
-                </div>
-              )}
             </div>
           </div>
         </div>
