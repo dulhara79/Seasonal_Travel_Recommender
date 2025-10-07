@@ -9,8 +9,12 @@ import os
 
 app = FastAPI(title="Seasonal Travel Recommender API")
 
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS",
-    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
+CORS_ORIGINS = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:5173,"
+    "http://localhost:3000,"
+    "http://127.0.0.1:5173,"
+    "http://127.0.0.1:3000"
 ).split(",")
 
 origins = [origin.strip() for origin in CORS_ORIGINS] + [
