@@ -4,6 +4,7 @@ from bson import ObjectId
 from server.utils.db import get_db
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 import io
+import hashlib
 
 # Configuration: max inline chars allowed per message. Messages larger than
 # this will have a truncated preview stored inline while the full text is
@@ -44,6 +45,20 @@ async def append_message(conversation_id: str, role: str, text: str, metadata: d
     # store a truncated preview inline with pointer to GridFS id.
     full_text_gfs_id = None
     preview_text = text
+    # Compute SHA-256 hash of the message text and store in metadata. If text is large
+    # and later uploaded to GridFS, hash the original full text before truncation/upload.
+    try:
+        if text is None:
+            text_to_hash = ""
+        else:
+            text_to_hash = text
+        sha256 = hashlib.sha256()
+        sha256.update(text_to_hash.encode("utf-8"))
+        metadata["text_hash"] = sha256.hexdigest()
+        metadata["text_hash_algo"] = "sha256"
+    except Exception:
+        # If hashing fails for any reason, continue without blocking message storage
+        pass
     if text is None:
         text = ""
 
@@ -51,6 +66,8 @@ async def append_message(conversation_id: str, role: str, text: str, metadata: d
         try:
             bucket = AsyncIOMotorGridFSBucket(db)
             # upload_from_stream accepts filename and a file-like object
+            # Upload the original full text to GridFS. We already computed the
+            # SHA-256 hash above against the original text.
             gfs_id = await bucket.upload_from_stream(None, io.BytesIO(text.encode("utf-8")))
             full_text_gfs_id = str(gfs_id)
             preview_text = text[:TRUNCATE_PREVIEW_CHARS] + "... [truncated]"
