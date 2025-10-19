@@ -34,9 +34,28 @@ if not JWT_SECRET:
         # Optionally, print a warning
         print("Warning: Using default JWT secret in development environment.")
     else:
+
+        
         raise RuntimeError("JWT_SECRET environment variable must be set in production environment.")
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '60'))
+
+# Encryption key for reversible encryption of stored messages.
+# This should be a URL-safe base64 32-byte key (Fernet). In production,
+# set ENCRYPTION_KEY env var to a securely generated key.
+ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
+if not ENCRYPTION_KEY:
+    if ENV == 'development':
+        try:
+            # avoid hard dependency at import-time errors if cryptography missing
+            from cryptography.fernet import Fernet
+
+            ENCRYPTION_KEY = Fernet.generate_key().decode()
+            print("Warning: Using generated ENCRYPTION_KEY in development environment.")
+        except Exception:
+            ENCRYPTION_KEY = None
+    else:
+        raise RuntimeError("ENCRYPTION_KEY environment variable must be set in production environment.")
 
 # Weather
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
