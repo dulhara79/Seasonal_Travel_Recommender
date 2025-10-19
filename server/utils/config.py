@@ -35,6 +35,7 @@ if not JWT_SECRET:
         print("Warning: Using default JWT secret in development environment.")
     else:
 
+
         
         raise RuntimeError("JWT_SECRET environment variable must be set in production environment.")
 JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
