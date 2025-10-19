@@ -315,11 +315,14 @@ def generate_summary(state: SummaryAgentInputSchema | dict, use_llm: bool = True
                               - No harmful, unsafe, or private information.  
                               - Encourage sustainable and respectful travel.  
                               - Be inclusive and culturally sensitive.  
+                              - Output Maximum 1000 tokens.
+                            
                             
                             ### Output Style:
                             - Clear, engaging, and professional tone.  
                             - Use emojis sparingly to add a friendly touch.  
-                            - Structure the summary so users can easily scan key details (e.g., Quick Links, Itinerary Highlights, Travel Tips).  
+                            - Structure the summary so users can easily scan key details (e.g., Quick Links, Itinerary Highlights, Travel Tips).
+                            - Output Maximum 1000 tokens.  
                             """),
                 ("human", "Here is the raw trip summary:\n{raw_info}")
             ])
