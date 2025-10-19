@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'; // FIX: Added .jsx extension
 import AuthForm from './components/AuthForm.jsx'; // FIX: Added .jsx extension
 import ChatInterface from './components/ChatInterface.jsx'; // FIX: Added .jsx extension
+import LandingPage from './components/LandingPage.jsx'
 
 // A simple protected route wrapper
 const ProtectedRoute = ({ element: Element }) => {
@@ -26,7 +27,8 @@ const AppRoutes = () => {
         <Routes>
             <Route path="/auth" element={<AuthForm />} />
             <Route path="/chat" element={<ProtectedRoute element={ChatInterface} />} />
-            <Route path="/" element={<Navigate to={user ? "/chat" : "/auth"} />} />
+            {/* <Route path="/" element={<Navigate to={user ? "/chat" : "/auth"} />} /> */}
+            <Route path="/" element={<LandingPage />} />
         </Routes>
     )
 }
