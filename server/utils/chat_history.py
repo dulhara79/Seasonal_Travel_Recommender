@@ -78,7 +78,11 @@ async def append_message(conversation_id: str, role: str, text: str, metadata: d
             preview_text = text[:TRUNCATE_PREVIEW_CHARS] + "... [truncated]"
             metadata["truncated"] = True
 
-    msg = {"role": role, "text": preview_text, "metadata": metadata, "timestamp": datetime.utcnow()}
+    # For privacy / compliance we avoid storing the full plaintext inline.
+    # Store only the hash and any GridFS pointer in metadata. Keep the
+    # inline text field empty (or a short redaction) so consumers that
+    # expect a 'text' key continue to work.
+    msg = {"role": role, "text": "", "metadata": metadata, "timestamp": datetime.utcnow()}
 
     try:
         res = await db.conversations.update_one(
